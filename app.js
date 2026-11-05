@@ -110,7 +110,7 @@ function loadTodos() {
       todos = [
         {
           id: generateId(),
-          title: '투두앱 초안 검토하기',
+          title: 'HD2Lab Server HQ 아키텍처 점검 및 서비스 배포',
           category: '업무',
           priority: 'high',
           dueDate: getTodayString(),
@@ -119,12 +119,21 @@ function loadTodos() {
         },
         {
           id: generateId(),
-          title: '운동 30분 달리기',
+          title: '데일리 할 일 목록 정리 및 우선순위 분배',
           category: '개인',
           priority: 'medium',
           dueDate: '',
           completed: true,
           createdAt: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
+          id: generateId(),
+          title: 'AI 에이전트 실험 워크스페이스 구축',
+          category: '공부',
+          priority: 'high',
+          dueDate: '',
+          completed: false,
+          createdAt: new Date(Date.now() - 7200000).toISOString()
         }
       ];
       saveTodos();
@@ -238,16 +247,18 @@ function handleClearCompleted() {
  * Theme
  */
 function loadTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'light';
+  const saved = localStorage.getItem(THEME_KEY) || 'dark';
   document.documentElement.setAttribute('data-theme', saved);
   updateThemeIcon(saved);
 }
 
 function handleToggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
   const next = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem(THEME_KEY, next);
+  updateThemeIcon(next);
+}
   updateThemeIcon(next);
 }
 

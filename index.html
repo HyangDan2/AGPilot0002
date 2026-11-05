@@ -3,23 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Todo Master - 할 일 관리</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#101110">
+  <meta name="description" content="HD2Lab | Todo Master: 일상을 체계적으로 정리하고 생산성을 높이는 스마트한 작업 관리 허브">
+  <title>HD2Lab | Todo Master</title>
+
+  <!-- Favicons -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon-32x32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" sizes="180x180">
+
+  <!-- Open Graph / Facebook / Kakao -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="HD2Lab">
+  <meta property="og:title" content="HD2Lab | Todo Master">
+  <meta property="og:description" content="체계적이고 직관적인 일정 관리. STAY CURIOUS, KEEP BUILDING, LIVE BETTER.">
+  <meta property="og:url" content="https://hyangdan2.github.io/AGPilot0002/">
+  <meta property="og:image" content="https://hyangdan2.github.io/AGPilot0002/social-preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:alt" content="HD2Lab Todo Master Social Preview">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="HD2Lab | Todo Master">
+  <meta name="twitter:description" content="체계적이고 직관적인 일정 관리. STAY CURIOUS, KEEP BUILDING, LIVE BETTER.">
+  <meta name="twitter:image" content="https://hyangdan2.github.io/AGPilot0002/social-preview.png">
+
+  <!-- Fonts & Styles -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app-container">
+    <!-- Eyebrow -->
+    <div class="eyebrow">
+      <span class="eyebrow-dot"></span>
+      <span>02 / SERVE · DAILY PRODUCTIVITY &amp; TASK LAB</span>
+    </div>
+
     <!-- Header -->
     <header class="app-header">
-      <div class="header-left">
-        <h1>📋 Todo Master</h1>
-        <p class="subtitle">체계적이고 스마트한 일정 관리</p>
+      <div class="brand-group">
+        <a href="https://hd2lab.duckdns.org" class="brand" target="_blank" rel="noopener noreferrer" title="HD2Lab 홈으로 이동">
+          <span class="mark" aria-hidden="true"></span>
+          <span class="brand-text">HD2Lab</span>
+          <em>Todo Master</em>
+        </a>
       </div>
       <div class="header-actions">
         <button id="themeToggleBtn" class="icon-btn" title="테마 변경" aria-label="테마 전환">
-          <span class="theme-icon">🌙</span>
+          <span class="theme-icon">☀️</span>
         </button>
         <button id="exportBtn" class="icon-btn" title="데이터 백업(JSON)" aria-label="데이터 내보내기">
           📥
@@ -150,6 +186,15 @@
         <button id="clearCompletedBtn" class="text-btn danger">완료 항목 삭제</button>
       </div>
     </footer>
+
+    <!-- HD2Lab Brand Signature -->
+    <div class="brand-signature">
+      <span>STAY CURIOUS</span>
+      <span class="sep">·</span>
+      <span>KEEP BUILDING</span>
+      <span class="sep">·</span>
+      <span>LIVE BETTER</span>
+    </div>
   </div>
 
   <script src="app.js"></script>
