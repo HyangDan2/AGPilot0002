@@ -1,23 +1,21 @@
 /**
- * Todo Master - Static SPA Application Logic
+ * HD2Lab Todo Master - Main Application Entrypoint (ES Module)
  */
 
-// Key Constants
-const STORAGE_KEY = 'todo_master_items_v1';
-const THEME_KEY = 'todo_master_theme_v1';
+import { Store } from './js/state/store.js';
+import { loadStoredTodos, loadStoredTheme } from './js/services/storage.js';
+import { createExportPayload, validateBackupPayload, downloadBackupFile, mergeTodos } from './js/services/backup.js';
+import { createTodoCardElement, getContextualEmptyState } from './js/ui/components.js';
+import { ToastManager } from './js/ui/toast.js';
+import { ModalController } from './js/ui/modal.js';
+import { DragDropController } from './js/ui/dnd.js';
 
-// State
-let todos = [];
-let currentFilter = 'all'; // 'all' | 'active' | 'completed'
-let currentCategory = 'all';
-let searchQuery = '';
-let currentSort = 'created-desc';
-
-// DOM Elements
+// DOM Element References
 const todoForm = document.getElementById('todoForm');
 const todoInput = document.getElementById('todoInput');
 const categorySelect = document.getElementById('categorySelect');
 const prioritySelect = document.getElementById('prioritySelect');
+const recurrenceSelect = document.getElementById('recurrenceSelect');
 const dueDateInput = document.getElementById('dueDateInput');
 const todoList = document.getElementById('todoList');
 const emptyState = document.getElementById('emptyState');
@@ -26,6 +24,7 @@ const emptyState = document.getElementById('emptyState');
 const statTotal = document.getElementById('statTotal');
 const statActive = document.getElementById('statActive');
 const statDone = document.getElementById('statDone');
+const statOverdue = document.getElementById('statOverdue');
 const progressBar = document.getElementById('progressBar');
 const progressPercent = document.getElementById('progressPercent');
 
@@ -39,413 +38,334 @@ const clearCompletedBtn = document.getElementById('clearCompletedBtn');
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 const exportBtn = document.getElementById('exportBtn');
 const importInput = document.getElementById('importInput');
+const shortcutsBtn = document.getElementById('shortcutsBtn');
+const toastContainer = document.getElementById('toastContainer');
+const shortcutsDialog = document.getElementById('shortcutsDialog');
 
-/**
- * Initialize Application
- */
-function init() {
-  loadTheme();
-  loadTodos();
-  setupEventListeners();
-  render();
+// Initialize Controllers
+const toast = new ToastManager(toastContainer);
+const modal = new ModalController();
+const expandedTodoIds = new Set();
+
+// Load initial state
+const initialStorage = loadStoredTodos();
+const initialTheme = loadStoredTheme();
+
+const store = new Store({
+  todos: initialStorage.todos,
+  theme: initialTheme
+});
+
+if (initialStorage.error) {
+  setTimeout(() => {
+    toast.show({ message: initialStorage.error, type: 'warning', duration: 6000 });
+  }, 300);
 }
 
-/**
- * Event Listeners
- */
-function setupEventListeners() {
-  // Form submission
-  todoForm.addEventListener('submit', handleAddTodo);
+// Drag & Drop Controller
+const dnd = new DragDropController({
+  onReorder: (sourceId, targetId) => {
+    store.reorderTodos(sourceId, targetId);
+    toast.show({ message: '순서가 변경되었습니다.', type: 'info', duration: 2000 });
+  }
+});
 
-  // Filter Tabs
+/**
+ * Setup All Event Listeners
+ */
+function setupEvents() {
+  // 1. Add Todo Form
+  todoForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = todoInput.value.trim();
+    if (!title) return;
+
+    try {
+      store.addTodo({
+        title,
+        category: categorySelect ? categorySelect.value : '개인',
+        priority: prioritySelect ? prioritySelect.value : 'medium',
+        recurrence: recurrenceSelect ? recurrenceSelect.value : 'none',
+        dueDate: dueDateInput ? dueDateInput.value : ''
+      });
+
+      todoInput.value = '';
+      if (dueDateInput) dueDateInput.value = '';
+      if (recurrenceSelect) recurrenceSelect.value = 'none';
+      todoInput.focus();
+
+      toast.show({ message: '할 일이 추가되었습니다.', type: 'success', duration: 2500 });
+    } catch (err) {
+      toast.show({ message: err.message, type: 'error' });
+    }
+  });
+
+  // 2. View Filter Tabs (All, Today, Upcoming, Overdue, Active, Completed)
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      tabBtns.forEach(b => b.classList.remove('active'));
+      tabBtns.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
       btn.classList.add('active');
-      currentFilter = btn.dataset.filter;
-      render();
+      btn.setAttribute('aria-selected', 'true');
+      store.setFilter(btn.dataset.filter);
     });
   });
 
-  // Search input
+  // 3. Search input
   searchInput.addEventListener('input', (e) => {
-    searchQuery = e.target.value.trim().toLowerCase();
-    render();
+    store.setSearchQuery(e.target.value);
   });
 
-  // Category filter
+  // 4. Category filter
   categoryFilter.addEventListener('change', (e) => {
-    currentCategory = e.target.value;
-    render();
+    store.setCategory(e.target.value);
   });
 
-  // Sort
+  // 5. Sort selection
   sortSelect.addEventListener('change', (e) => {
-    currentSort = e.target.value;
-    render();
+    store.setSort(e.target.value);
   });
 
-  // Batch actions
-  toggleAllBtn.addEventListener('click', handleToggleAll);
-  clearCompletedBtn.addEventListener('click', handleClearCompleted);
-
-  // Theme toggle
-  themeToggleBtn.addEventListener('click', handleToggleTheme);
-
-  // Backup & Restore
-  exportBtn.addEventListener('click', handleExportJSON);
-  importInput.addEventListener('change', handleImportJSON);
-}
-
-/**
- * Storage Helpers
- */
-function loadTodos() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      todos = JSON.parse(raw);
-    } else {
-      // Default Sample Data for first-time visitors
-      todos = [
-        {
-          id: generateId(),
-          title: 'HD2Lab Server HQ 아키텍처 점검 및 서비스 배포',
-          category: '업무',
-          priority: 'high',
-          dueDate: getTodayString(),
-          completed: false,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: generateId(),
-          title: '데일리 할 일 목록 정리 및 우선순위 분배',
-          category: '개인',
-          priority: 'medium',
-          dueDate: '',
-          completed: true,
-          createdAt: new Date(Date.now() - 3600000).toISOString()
-        },
-        {
-          id: generateId(),
-          title: 'AI 에이전트 실험 워크스페이스 구축',
-          category: '공부',
-          priority: 'high',
-          dueDate: '',
-          completed: false,
-          createdAt: new Date(Date.now() - 7200000).toISOString()
-        }
-      ];
-      saveTodos();
-    }
-  } catch (e) {
-    console.error('Failed to load todos from localStorage', e);
-    todos = [];
-  }
-}
-
-function saveTodos() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
-  } catch (e) {
-    console.error('Failed to save todos to localStorage', e);
-  }
-}
-
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
-}
-
-function getTodayString() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-/**
- * Handlers
- */
-function handleAddTodo(e) {
-  e.preventDefault();
-  const title = todoInput.value.trim();
-  if (!title) return;
-
-  const newTodo = {
-    id: generateId(),
-    title,
-    category: categorySelect.value,
-    priority: prioritySelect.value,
-    dueDate: dueDateInput.value,
-    completed: false,
-    createdAt: new Date().toISOString()
-  };
-
-  todos.unshift(newTodo);
-  saveTodos();
-  render();
-
-  // Reset input form
-  todoInput.value = '';
-  dueDateInput.value = '';
-  todoInput.focus();
-}
-
-function handleToggleTodo(id) {
-  todos = todos.map(todo => {
-    if (todo.id === id) {
-      return { ...todo, completed: !todo.completed };
-    }
-    return todo;
+  // 6. Theme Toggle
+  themeToggleBtn.addEventListener('click', () => {
+    const nextTheme = store.toggleTheme();
+    applyTheme(nextTheme);
   });
-  saveTodos();
-  render();
-}
 
-function handleDeleteTodo(id) {
-  todos = todos.filter(todo => todo.id !== id);
-  saveTodos();
-  render();
-}
-
-function handleEditTodo(id) {
-  const target = todos.find(t => t.id === id);
-  if (!target) return;
-
-  const newTitle = prompt('할 일 수정:', target.title);
-  if (newTitle !== null) {
-    const trimmed = newTitle.trim();
-    if (trimmed) {
-      target.title = trimmed;
-      saveTodos();
-      render();
-    }
-  }
-}
-
-function handleToggleAll() {
-  if (todos.length === 0) return;
-  const hasActive = todos.some(t => !t.completed);
-  todos = todos.map(t => ({ ...t, completed: hasActive }));
-  saveTodos();
-  render();
-}
-
-function handleClearCompleted() {
-  const completedCount = todos.filter(t => t.completed).length;
-  if (completedCount === 0) return;
-
-  if (confirm(`완료된 할 일 ${completedCount}개를 삭제하시겠습니까?`)) {
-    todos = todos.filter(t => !t.completed);
-    saveTodos();
-    render();
-  }
-}
-
-/**
- * Theme
- */
-function loadTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'dark';
-  document.documentElement.setAttribute('data-theme', saved);
-  updateThemeIcon(saved);
-}
-
-function handleToggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme') || 'dark';
-  const next = current === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem(THEME_KEY, next);
-  updateThemeIcon(next);
-}
-
-function updateThemeIcon(theme) {
-  const labelSpan = themeToggleBtn.querySelector('.theme-label') || themeToggleBtn.querySelector('.theme-icon');
-  if (labelSpan) {
-    labelSpan.textContent = theme === 'dark' ? 'LIGHT' : 'DARK';
-  }
-}
-
-/**
- * Backup (Export & Import)
- */
-function handleExportJSON() {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(todos, null, 2));
-  const dlAnchor = document.createElement('a');
-  dlAnchor.setAttribute("href", dataStr);
-  dlAnchor.setAttribute("download", `todo_backup_${getTodayString()}.json`);
-  document.body.appendChild(dlAnchor);
-  dlAnchor.click();
-  dlAnchor.remove();
-}
-
-function handleImportJSON(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (event) => {
+  // 7. Backup Export
+  exportBtn.addEventListener('click', () => {
     try {
-      const imported = JSON.parse(event.target.result);
-      if (Array.isArray(imported)) {
-        if (confirm(`불러온 데이터(${imported.length}개)로 교체하시겠습니까?`)) {
-          todos = imported;
-          saveTodos();
-          render();
-        }
-      } else {
-        alert('올바른 투두 백업 파일 형식이 아닙니다.');
-      }
+      const payload = createExportPayload(store.todos);
+      downloadBackupFile(payload);
+      toast.show({ message: `할 일 ${store.todos.length}개가 백업되었습니다.`, type: 'success' });
     } catch (err) {
-      alert('파일을 읽는 중 오류가 발생했습니다.');
+      toast.show({ message: '백업 생성 중 오류가 발생했습니다.', type: 'error' });
     }
-  };
-  reader.readAsText(file);
-  e.target.value = ''; // Reset input
+  });
+
+  // 8. Backup Import
+  importInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const validation = validateBackupPayload(event.target.result);
+        if (!validation.isValid) {
+          toast.show({ message: validation.error || '백업 데이터가 올바르지 않습니다.', type: 'error' });
+          return;
+        }
+
+        const choice = await modal.showImportPreview({
+          totalCount: validation.totalCount,
+          validCount: validation.validTodos.length,
+          invalidCount: validation.invalidCount,
+          existingCount: store.todos.length
+        });
+
+        if (choice === 'replace') {
+          store.todos = validation.validTodos;
+          store.notify();
+          toast.show({ message: `${validation.validTodos.length}개 항목으로 덮어썼습니다.`, type: 'success' });
+        } else if (choice === 'merge') {
+          store.todos = mergeTodos(store.todos, validation.validTodos);
+          store.notify();
+          toast.show({ message: `${validation.validTodos.length}개 항목을 병합했습니다.`, type: 'success' });
+        }
+      } catch (err) {
+        toast.show({ message: '파일 복원 처리 중 오류가 발생했습니다.', type: 'error' });
+      } finally {
+        e.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // 9. Batch Actions
+  toggleAllBtn.addEventListener('click', () => {
+    store.toggleAll();
+  });
+
+  clearCompletedBtn.addEventListener('click', async () => {
+    const completedCount = store.todos.filter(t => t.completed).length;
+    if (completedCount === 0) {
+      toast.show({ message: '삭제할 완료 항목이 없습니다.', type: 'info' });
+      return;
+    }
+
+    const confirmed = await modal.confirm({
+      title: '완료 항목 일괄 삭제',
+      message: `완료된 할 일 ${completedCount}개를 영구적으로 삭제하시겠습니까?`,
+      confirmText: '삭제 실행',
+      cancelText: '취소',
+      isDestructive: true
+    });
+
+    if (confirmed) {
+      store.clearCompleted();
+      toast.show({ message: `완료 항목 ${completedCount}개가 삭제되었습니다.`, type: 'success' });
+    }
+  });
+
+  // 10. Shortcuts dialog toggle
+  if (shortcutsBtn && shortcutsDialog) {
+    shortcutsBtn.addEventListener('click', () => {
+      modal.open(shortcutsDialog);
+    });
+    const closeShortcutsBtn = shortcutsDialog.querySelector('.close-dialog-btn');
+    if (closeShortcutsBtn) {
+      closeShortcutsBtn.addEventListener('click', () => modal.close());
+    }
+  }
+
+  // 11. Global Keyboard Shortcuts
+  document.addEventListener('keydown', (e) => {
+    const isInputActive = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+
+    if (e.key === '?' && !isInputActive && shortcutsDialog) {
+      e.preventDefault();
+      modal.open(shortcutsDialog);
+    } else if (e.key === 'n' && !isInputActive && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      todoInput.focus();
+    } else if (e.key === 't' && !isInputActive && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      const nextTheme = store.toggleTheme();
+      applyTheme(nextTheme);
+    }
+  });
 }
 
 /**
- * Format Helpers
+ * Apply theme to document element and update toggle button.
+ * @param {'dark'|'light'} theme
  */
-function formatDueDate(dueDateStr) {
-  if (!dueDateStr) return null;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const due = new Date(dueDateStr);
-  due.setHours(0, 0, 0, 0);
-
-  const diffTime = due.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return { text: '오늘 마감', urgent: true };
-  } else if (diffDays === 1) {
-    return { text: '내일 마감', urgent: false };
-  } else if (diffDays < 0) {
-    return { text: `${Math.abs(diffDays)}일 지남`, urgent: true };
-  } else {
-    return { text: `D-${diffDays}`, urgent: false };
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const themeLabel = themeToggleBtn.querySelector('.theme-label');
+  if (themeLabel) {
+    themeLabel.textContent = theme === 'dark' ? 'LIGHT' : 'DARK';
   }
 }
 
 /**
- * Render
+ * Main Render Loop
  */
 function render() {
-  // 1. Filter
-  let filtered = todos.filter(todo => {
-    // Status
-    if (currentFilter === 'active' && todo.completed) return false;
-    if (currentFilter === 'completed' && !todo.completed) return false;
+  const filteredList = store.getFilteredAndSortedTodos();
+  const stats = store.getStats();
 
-    // Category
-    if (currentCategory !== 'all' && todo.category !== currentCategory) return false;
-
-    // Search
-    if (searchQuery && !todo.title.toLowerCase().includes(searchQuery)) return false;
-
-    return true;
-  });
-
-  // 2. Sort
-  filtered.sort((a, b) => {
-    if (currentSort === 'created-asc') {
-      return new Date(a.createdAt) - new Date(b.createdAt);
-    } else if (currentSort === 'created-desc') {
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    } else if (currentSort === 'due-date') {
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return new Date(a.dueDate) - new Date(b.dueDate);
-    } else if (currentSort === 'priority') {
-      const weight = { high: 3, medium: 2, low: 1 };
-      return weight[b.priority] - weight[a.priority];
-    }
-    return 0;
-  });
-
-  // 3. Render Items
+  // 1. Render items
   todoList.innerHTML = '';
-  if (filtered.length === 0) {
+  if (filteredList.length === 0) {
     emptyState.classList.remove('hidden');
+    const emptyInfo = getContextualEmptyState(store.filter, store.searchQuery);
+    emptyState.querySelector('.empty-icon').textContent = emptyInfo.icon;
+    emptyState.querySelector('.empty-title').textContent = emptyInfo.title;
+    emptyState.querySelector('.empty-desc').textContent = emptyInfo.desc;
   } else {
     emptyState.classList.add('hidden');
-    filtered.forEach(todo => {
-      const li = createTodoElement(todo);
-      todoList.appendChild(li);
+    filteredList.forEach(todo => {
+      const card = createTodoCardElement(
+        todo,
+        {
+          onToggle: (id) => {
+            const updated = store.toggleTodo(id);
+            if (updated && updated.completed) {
+              toast.show({ message: '할 일을 완료했습니다! 🎉', type: 'success', duration: 2000 });
+            }
+          },
+          onUpdateTitle: (id, newTitle) => {
+            store.updateTodo(id, { title: newTitle });
+            toast.show({ message: '할 일이 수정되었습니다.', type: 'info', duration: 2000 });
+          },
+          onDelete: (id) => {
+            const deleted = store.deleteTodo(id);
+            if (deleted) {
+              toast.show({
+                message: `"${deleted.title}" 항목이 삭제되었습니다.`,
+                type: 'warning',
+                duration: 6000,
+                action: {
+                  label: '실행 취소',
+                  onClick: () => {
+                    store.undoDelete();
+                    toast.show({ message: '삭제가 취소되었습니다.', type: 'success', duration: 2000 });
+                  }
+                }
+              });
+            }
+          },
+          onMove: (id, direction) => {
+            const success = store.moveTodo(id, direction);
+            if (success) {
+              sortSelect.value = 'manual';
+            }
+          },
+          onToggleSubtasksExpand: (id) => {
+            if (expandedTodoIds.has(id)) {
+              expandedTodoIds.delete(id);
+            } else {
+              expandedTodoIds.add(id);
+            }
+            render();
+          },
+          onAddSubtask: (todoId, title) => {
+            store.addSubtask(todoId, title);
+            expandedTodoIds.add(todoId);
+          },
+          onToggleSubtask: (todoId, subtaskId) => {
+            store.toggleSubtask(todoId, subtaskId);
+          },
+          onDeleteSubtask: (todoId, subtaskId) => {
+            store.deleteSubtask(todoId, subtaskId);
+          },
+          setupDragAndDrop: (el, id) => {
+            dnd.attach(el, id);
+          }
+        },
+        expandedTodoIds.has(todo.id)
+      );
+      todoList.appendChild(card);
     });
   }
 
-  // 4. Update Stats
-  updateStats();
+  // 2. Update Stats
+  if (statTotal) statTotal.textContent = stats.total;
+  if (statActive) statActive.textContent = stats.active;
+  if (statDone) statDone.textContent = stats.done;
+  if (statOverdue) {
+    statOverdue.textContent = stats.overdue;
+    statOverdue.closest('.stat-item').style.display = stats.overdue > 0 ? 'flex' : 'none';
+  }
+  if (progressBar) progressBar.style.width = `${stats.percent}%`;
+  if (progressPercent) progressPercent.textContent = `${stats.percent}%`;
 }
 
-function createTodoElement(todo) {
-  const li = document.createElement('li');
-  li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
-  li.dataset.id = todo.id;
-
-  const dueInfo = formatDueDate(todo.dueDate);
-  const priorityLabels = { high: '높음', medium: '보통', low: '낮음' };
-
-  li.innerHTML = `
-    <div class="item-left">
-      <div class="custom-checkbox" role="checkbox" aria-checked="${todo.completed}"></div>
-      <div class="item-content">
-        <span class="item-title">${escapeHTML(todo.title)}</span>
-        <div class="item-meta">
-          <span class="badge badge-category">${escapeHTML(todo.category)}</span>
-          <span class="badge badge-priority ${todo.priority}">🚩 ${priorityLabels[todo.priority] || '보통'}</span>
-          ${dueInfo ? `<span class="badge badge-due ${dueInfo.urgent ? 'urgent' : ''}">📅 ${dueInfo.text}</span>` : ''}
-        </div>
-      </div>
-    </div>
-    <div class="item-actions">
-      <button class="action-btn edit-btn" title="수정">✏️</button>
-      <button class="action-btn delete-btn" title="삭제">🗑️</button>
-    </div>
-  `;
-
-  // Attach Item Events
-  const checkbox = li.querySelector('.custom-checkbox');
-  checkbox.addEventListener('click', () => handleToggleTodo(todo.id));
-
-  const editBtn = li.querySelector('.edit-btn');
-  editBtn.addEventListener('click', () => handleEditTodo(todo.id));
-
-  const deleteBtn = li.querySelector('.delete-btn');
-  deleteBtn.addEventListener('click', () => handleDeleteTodo(todo.id));
-
-  return li;
+/**
+ * Service Worker Registration for PWA Offline Support
+ */
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('./sw.js')
+        .then(reg => {
+          console.log('HD2Lab ServiceWorker registered successfully:', reg.scope);
+        })
+        .catch(err => {
+          console.warn('ServiceWorker registration skipped/failed:', err);
+        });
+    });
+  }
 }
 
-function updateStats() {
-  const total = todos.length;
-  const done = todos.filter(t => t.completed).length;
-  const active = total - done;
-  const percent = total === 0 ? 0 : Math.round((done / total) * 100);
-
-  statTotal.textContent = total;
-  statActive.textContent = active;
-  statDone.textContent = done;
-  progressPercent.textContent = `${percent}%`;
-  progressBar.style.width = `${percent}%`;
-}
-
-function escapeHTML(str) {
-  return str.replace(/[&<>'"]/g, 
-    tag => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      "'": '&#39;',
-      '"': '&quot;'
-    }[tag] || tag)
-  );
-}
-
-// Start
-init();
+// Start Application
+applyTheme(store.theme);
+setupEvents();
+store.subscribe(() => render());
+render();
+registerServiceWorker();

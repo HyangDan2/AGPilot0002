@@ -4,8 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101110">
-  <meta name="description" content="HD2Lab Todo Master: a personal space for everyday life, useful services, and AI experiments.">
+  <meta name="description" content="HD2Lab Todo Master: 일상을 체계적으로 정리하고 생산성을 높이는 스마트한 작업 관리 허브">
   <title>HD2Lab | Todo Master</title>
+
+  <!-- PWA & Mobile Web App -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Todo Master">
 
   <!-- Favicons -->
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -52,7 +58,8 @@
         </div>
 
         <div class="header-actions">
-          <button id="themeToggleBtn" class="about" title="테마 전환" aria-label="테마 전환">
+          <button id="shortcutsBtn" class="about" title="단축키 안내 (?)" aria-label="단축키 안내">?</button>
+          <button id="themeToggleBtn" class="about" title="테마 전환 (T)" aria-label="테마 전환">
             <span class="theme-label">LIGHT</span>
           </button>
           <button id="exportBtn" class="about" title="데이터 백업(JSON)" aria-label="데이터 내보내기">
@@ -66,13 +73,13 @@
       </header>
 
       <!-- Stats & Progress Hub -->
-      <section class="stats-card">
+      <section class="stats-card" aria-label="진행 통계">
         <div class="progress-info">
           <div class="progress-labels">
             <span class="hub-code">PROGRESS</span>
             <span id="progressPercent" class="percent">0%</span>
           </div>
-          <div class="progress-bar-bg">
+          <div class="progress-bar-bg" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="progressBar" class="progress-bar-fill" style="width: 0%;"></div>
           </div>
         </div>
@@ -91,17 +98,23 @@
             <span class="stat-num text-done" id="statDone">0</span>
             <span class="stat-desc">DONE</span>
           </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item stat-overdue-box" style="display: none;">
+            <span class="stat-num text-overdue" id="statOverdue">0</span>
+            <span class="stat-desc">OVERDUE</span>
+          </div>
         </div>
       </section>
 
       <!-- Todo Input Form -->
-      <form id="todoForm" class="todo-form">
+      <form id="todoForm" class="todo-form" aria-label="할 일 추가 양식">
         <div class="input-main">
           <input 
             type="text" 
             id="todoInput" 
-            placeholder="새로운 할 일을 입력하세요... (Enter)" 
+            placeholder="새로운 할 일을 입력하세요... (N 키로 포커스)" 
             autocomplete="off"
+            maxlength="300"
             required
           >
           <button type="submit" class="hero-action-btn">추가</button>
@@ -126,6 +139,15 @@
             </select>
           </div>
           <div class="option-group">
+            <label for="recurrenceSelect">반복 주기</label>
+            <select id="recurrenceSelect">
+              <option value="none">반복 없음</option>
+              <option value="daily">🔁 매일</option>
+              <option value="weekly">🔁 매주</option>
+              <option value="monthly">🔁 매월</option>
+            </select>
+          </div>
+          <div class="option-group">
             <label for="dueDateInput">마감일</label>
             <input type="date" id="dueDateInput">
           </div>
@@ -133,19 +155,22 @@
       </form>
 
       <!-- Control Bar (Filters, Search, Sort) -->
-      <div class="control-bar">
-        <div class="filter-tabs">
-          <button class="tab-btn active" data-filter="all">전체</button>
-          <button class="tab-btn" data-filter="active">진행 중</button>
-          <button class="tab-btn" data-filter="completed">완료됨</button>
+      <div class="control-bar" role="toolbar" aria-label="필터 및 정렬">
+        <div class="filter-tabs" role="tablist">
+          <button class="tab-btn active" data-filter="all" role="tab" aria-selected="true">전체</button>
+          <button class="tab-btn" data-filter="today" role="tab" aria-selected="false">오늘</button>
+          <button class="tab-btn" data-filter="upcoming" role="tab" aria-selected="false">예정</button>
+          <button class="tab-btn" data-filter="overdue" role="tab" aria-selected="false">지연</button>
+          <button class="tab-btn" data-filter="active" role="tab" aria-selected="false">진행 중</button>
+          <button class="tab-btn" data-filter="completed" role="tab" aria-selected="false">완료됨</button>
         </div>
         
         <div class="filter-options">
           <div class="search-box">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="searchInput" placeholder="할 일 검색...">
+            <span class="search-icon" aria-hidden="true">🔍</span>
+            <input type="text" id="searchInput" placeholder="할 일 또는 세부 항목 검색..." aria-label="할 일 검색">
           </div>
-          <select id="categoryFilter">
+          <select id="categoryFilter" aria-label="카테고리 필터">
             <option value="all">전체 카테고리</option>
             <option value="개인">👤 개인</option>
             <option value="업무">💼 업무</option>
@@ -153,7 +178,8 @@
             <option value="쇼핑">🛒 쇼핑</option>
             <option value="기타">📌 기타</option>
           </select>
-          <select id="sortSelect">
+          <select id="sortSelect" aria-label="정렬 기준">
+            <option value="manual">사용자 지정 순서 (드래그)</option>
             <option value="created-desc">최신순</option>
             <option value="created-asc">오래된순</option>
             <option value="due-date">마감일 임박순</option>
@@ -163,13 +189,13 @@
       </div>
 
       <!-- Todo List Container -->
-      <main class="todo-main">
-        <ul id="todoList" class="todo-list">
-          <!-- 동적으로 투두 아이템 렌더링 -->
+      <main class="todo-main" aria-label="할 일 목록">
+        <ul id="todoList" class="todo-list" aria-live="polite">
+          <!-- Dynamically rendered task cards -->
         </ul>
 
-        <div id="emptyState" class="empty-state hidden">
-          <div class="empty-icon">🏖️</div>
+        <div id="emptyState" class="empty-state hidden" aria-live="polite">
+          <div class="empty-icon" aria-hidden="true">🏖️</div>
           <p class="empty-title">할 일이 없습니다</p>
           <p class="empty-desc">새로운 목표를 추가해 하루를 알차게 채워보세요.</p>
         </div>
@@ -186,7 +212,7 @@
       </footer>
 
       <!-- HD2Lab Principles -->
-      <div class="principles">
+      <div class="principles" aria-label="HD2Lab 신조">
         <span>STAY CURIOUS</span>
         <span>KEEP BUILDING</span>
         <span>LIVE BETTER</span>
@@ -195,6 +221,42 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Keyboard Shortcuts Dialog -->
+  <dialog id="shortcutsDialog" class="hd2-dialog" aria-labelledby="shortcutsTitle">
+    <div class="dialog-content">
+      <div class="dialog-header">
+        <h3 id="shortcutsTitle">단축키 안내</h3>
+        <button type="button" class="close-dialog-btn" aria-label="닫기">&times;</button>
+      </div>
+      <div class="shortcuts-list">
+        <div class="shortcut-row">
+          <kbd>N</kbd>
+          <span>새 할 일 입력창으로 바로 포커스</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>T</kbd>
+          <span>다크 / 라이트 테마 전환</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>?</kbd>
+          <span>단축키 안내 열기</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>Space / Enter</kbd>
+          <span>체크박스 포커스 시 완료 토글</span>
+        </div>
+        <div class="shortcut-row">
+          <kbd>Esc</kbd>
+          <span>열린 창 닫기 또는 인라인 편집 취소</span>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modular Application Entry -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>

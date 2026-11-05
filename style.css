@@ -9,6 +9,7 @@
   --accent: #ff824f;
   --accent-hover: #ff9b73;
   --card-bg: #1b1d19;
+  --card-sub-bg: #22251f;
   --card-border: #33362d;
   --card-hover: #777e66;
   --olive-text: #b9c3a7;
@@ -16,7 +17,7 @@
   --olive-border: #82916c;
   --danger: #ef4444;
   --danger-bg: rgba(239, 68, 68, 0.15);
-  font-family: Arial, 'Noto Sans KR', sans-serif;
+  font-family: Arial, 'Noto Sans KR', -apple-system, sans-serif;
 }
 
 [data-theme="light"] {
@@ -30,6 +31,7 @@
   --accent: #e5622d;
   --accent-hover: #cf5422;
   --card-bg: #ffffff;
+  --card-sub-bg: #f7f6f1;
   --card-border: #dcdad0;
   --card-hover: #a1a890;
   --olive-text: #53613e;
@@ -51,7 +53,7 @@ body {
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  padding: 48px 16px;
+  padding: 40px 16px;
   line-height: 1.6;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -69,10 +71,10 @@ body {
 .app-container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
 }
 
-/* Eyebrow - Exactly matching hd2lab.duckdns.org */
+/* Eyebrow */
 .eyebrow {
   display: flex;
   gap: 10px;
@@ -96,12 +98,12 @@ body {
   display: inline-block;
 }
 
-/* Header & Brand - Exactly matching hd2lab.duckdns.org */
+/* Header & Brand */
 .app-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 18px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -126,7 +128,7 @@ body {
   padding-left: 13px;
 }
 
-/* HD2Lab Skew Mark - Exact geometry */
+/* HD2Lab Skew Mark */
 .mark {
   display: inline-block;
   width: 17px;
@@ -144,18 +146,19 @@ body {
   border: 2px solid var(--accent);
 }
 
-/* Header Actions (.about button matching hd2lab) */
+/* Header Actions */
 .header-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .about {
   background: none;
   border: 1px solid var(--line-strong);
   color: var(--text);
-  padding: 8px 14px;
+  padding: 7px 12px;
   border-radius: 4px;
   font-size: 11px;
   font-family: monospace;
@@ -172,18 +175,18 @@ body {
   color: var(--accent);
 }
 
-.about:focus-visible, button:focus-visible, a:focus-visible {
+.about:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 4px;
+  outline-offset: 3px;
 }
 
 .file-label {
   cursor: pointer;
 }
 
-/* Stats Card (.hub style matching hd2lab) */
+/* Stats Card */
 .stats-card {
-  padding: 24px;
+  padding: 20px 24px;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 6px;
@@ -241,7 +244,7 @@ body {
 }
 
 .stat-num {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
   font-weight: 700;
   font-family: monospace;
   letter-spacing: -0.5px;
@@ -253,6 +256,10 @@ body {
 
 .text-done {
   color: var(--olive-text);
+}
+
+.text-overdue {
+  color: var(--danger);
 }
 
 .stat-desc {
@@ -267,7 +274,7 @@ body {
   background-color: var(--line);
 }
 
-/* Form (.hero-action style button) */
+/* Form */
 .todo-form {
   display: flex;
   flex-direction: column;
@@ -281,7 +288,7 @@ body {
 
 .input-main input {
   flex: 1;
-  padding: 13px 16px;
+  padding: 12px 16px;
   border-radius: 4px;
   border: 1px solid var(--line-strong);
   background: var(--card-bg);
@@ -300,11 +307,14 @@ body {
   color: #191b15;
   border: none;
   border-radius: 3px;
-  padding: 0 24px;
+  padding: 0 22px;
   font-size: 13px;
   font-weight: bold;
   cursor: pointer;
   letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background 0.2s ease;
 }
 
@@ -312,9 +322,19 @@ body {
   background: var(--accent-hover);
 }
 
+.hero-action-btn.destructive {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.small-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+}
+
 .input-sub {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -353,17 +373,20 @@ body {
 
 .filter-tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .tab-btn {
-  padding: 6px 14px;
+  padding: 6px 13px;
   border-radius: 4px;
   border: 1px solid var(--line-strong);
   background: var(--card-bg);
   color: var(--muted);
   font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 
@@ -398,6 +421,7 @@ body {
   left: 10px;
   font-size: 12px;
   color: var(--muted);
+  pointer-events: none;
 }
 
 .search-box input {
@@ -429,7 +453,7 @@ body {
   border-color: var(--accent);
 }
 
-/* Todo List */
+/* Todo List Container */
 .todo-main {
   min-height: 220px;
 }
@@ -441,23 +465,37 @@ body {
   gap: 10px;
 }
 
+/* Todo Item Card */
 .todo-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
+  flex-direction: column;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 6px;
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  padding: 12px 16px;
+  gap: 10px;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .todo-item:hover {
   border-color: var(--card-hover);
 }
 
+.todo-item.is-dragging {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.todo-item.drag-over-top {
+  border-top: 2px solid var(--accent);
+}
+
+.todo-item.drag-over-bottom {
+  border-bottom: 2px solid var(--accent);
+}
+
 .todo-item.completed {
-  opacity: 0.55;
+  opacity: 0.6;
   background: rgba(16, 17, 16, 0.4);
 }
 
@@ -466,12 +504,24 @@ body {
   color: var(--muted);
 }
 
-.item-left {
+.item-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 1;
-  min-width: 0;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  font-size: 14px;
+  user-select: none;
+  padding: 2px 4px;
+  opacity: 0.5;
+}
+
+.drag-handle:hover {
+  opacity: 1;
+  color: var(--accent);
 }
 
 .custom-checkbox {
@@ -503,17 +553,46 @@ body {
   font-weight: 900;
 }
 
-.item-content {
+.item-body {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  overflow: hidden;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.item-title-wrapper {
+  position: relative;
 }
 
 .item-title {
   font-size: 14px;
   font-weight: 500;
   word-break: break-all;
+  cursor: pointer;
+}
+
+.inline-edit-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.inline-edit-input {
+  flex: 1;
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 4px;
+  font-size: 14px;
+  outline: none;
+}
+
+.inline-edit-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .item-meta {
@@ -554,6 +633,12 @@ body {
   border: 1px solid rgba(130, 145, 108, 0.4);
 }
 
+.badge-recurrence {
+  background: var(--card-sub-bg);
+  color: var(--olive-text);
+  border: 1px solid var(--line);
+}
+
 .badge-due {
   color: var(--muted);
   font: 10px monospace;
@@ -564,11 +649,30 @@ body {
   font-weight: bold;
 }
 
+.badge-completed-time {
+  color: var(--muted);
+  font: 10px monospace;
+  opacity: 0.8;
+}
+
+.badge-subtask-toggle {
+  background: var(--card-sub-bg);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.badge-subtask-toggle:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .item-actions {
   display: flex;
   gap: 4px;
-  margin-left: 10px;
-  opacity: 0.6;
+  margin-left: auto;
+  opacity: 0.7;
 }
 
 .todo-item:hover .item-actions {
@@ -591,9 +695,89 @@ body {
   color: var(--text);
 }
 
-.action-btn.delete-btn:hover {
+.action-btn.delete-btn:hover, .subtask-delete-btn:hover {
   background: var(--danger-bg);
   color: var(--danger);
+}
+
+/* Subtasks Section */
+.subtasks-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-top: 4px;
+  border-top: 1px dashed var(--line);
+  background: var(--card-sub-bg);
+  border-radius: 4px;
+  transition: max-height 0.2s ease;
+}
+
+.subtasks-container.collapsed {
+  display: none;
+}
+
+.subtask-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.subtask-item.completed .subtask-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.subtask-checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1.5px solid var(--line-strong);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.subtask-item.completed .subtask-checkbox {
+  background: var(--olive-border);
+  border-color: var(--olive-border);
+}
+
+.subtask-item.completed .subtask-checkbox::after {
+  content: "✓";
+  color: #191b15;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.subtask-title {
+  flex: 1;
+  word-break: break-all;
+}
+
+.subtask-add-form input {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.subtask-add-form input:focus {
+  border-color: var(--accent);
 }
 
 /* Empty State */
@@ -657,13 +841,13 @@ body {
   background: var(--danger-bg);
 }
 
-/* HD2Lab Principles - Exactly matching hd2lab.duckdns.org */
+/* HD2Lab Principles */
 .principles {
   display: flex;
   justify-content: center;
   gap: 24px;
-  margin-top: 8px;
-  padding-top: 18px;
+  margin-top: 6px;
+  padding-top: 16px;
   border-top: 1px solid var(--line);
   font: 10px monospace;
   color: #d6d9ca;
@@ -680,10 +864,246 @@ body {
   color: var(--accent);
 }
 
-/* Responsive */
+/* Toast Notifications */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+  max-width: 400px;
+  width: calc(100% - 48px);
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-size: 13px;
+  color: var(--text);
+  animation: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-exit {
+  animation: toast-out 0.2s ease forwards;
+}
+
+.toast-success {
+  border-left: 4px solid var(--olive-border);
+}
+
+.toast-warning {
+  border-left: 4px solid var(--accent);
+}
+
+.toast-error {
+  border-left: 4px solid var(--danger);
+}
+
+.toast-info {
+  border-left: 4px solid var(--muted);
+}
+
+.toast-message {
+  flex: 1;
+  word-break: break-all;
+}
+
+.toast-action-btn {
+  background: var(--accent);
+  color: #191b15;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toast-close-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+/* Modal / Dialog */
+.hd2-dialog {
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text);
+  width: min(500px, calc(100% - 32px));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.hd2-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.dialog-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.close-dialog-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Import Preview Styles */
+.import-preview-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--card-sub-bg);
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+
+.preview-stat-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.preview-stat-val.accent {
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.preview-stat-val.danger {
+  color: var(--danger);
+  font-weight: bold;
+}
+
+.import-mode-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* Keyboard Shortcuts List */
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+kbd {
+  background: var(--card-sub-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+/* Utility Hidden */
+.hidden {
+  display: none !important;
+}
+
+/* Animations */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Responsive Breakpoints */
 @media (max-width: 580px) {
   body {
     padding: 16px 12px;
+  }
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
   .input-main {
     flex-direction: column;
@@ -701,5 +1121,10 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 8px;
+  }
+  .toast-container {
+    left: 16px;
+    right: 16px;
+    width: auto;
   }
 }
