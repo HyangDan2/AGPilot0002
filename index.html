@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Todo Master - 할 일 관리</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <h1>📋 Todo Master</h1>
+        <p class="subtitle">체계적이고 스마트한 일정 관리</p>
+      </div>
+      <div class="header-actions">
+        <button id="themeToggleBtn" class="icon-btn" title="테마 변경" aria-label="테마 전환">
+          <span class="theme-icon">🌙</span>
+        </button>
+        <button id="exportBtn" class="icon-btn" title="데이터 백업(JSON)" aria-label="데이터 내보내기">
+          📥
+        </button>
+        <label for="importInput" class="icon-btn file-label" title="데이터 복원(JSON)" aria-label="데이터 가져오기">
+          📤
+          <input type="file" id="importInput" accept=".json" hidden>
+        </label>
+      </div>
+    </header>
+
+    <!-- Stats & Progress -->
+    <section class="stats-card">
+      <div class="progress-info">
+        <div class="progress-labels">
+          <span class="label">진행 상황</span>
+          <span id="progressPercent" class="percent">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="progressBar" class="progress-bar-fill" style="width: 0%;"></div>
+        </div>
+      </div>
+      <div class="stats-counter">
+        <div class="stat-item">
+          <span class="stat-num" id="statTotal">0</span>
+          <span class="stat-desc">전체</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-num text-active" id="statActive">0</span>
+          <span class="stat-desc">진행 중</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <span class="stat-num text-done" id="statDone">0</span>
+          <span class="stat-desc">완료</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Todo Input Form -->
+    <form id="todoForm" class="todo-form">
+      <div class="input-main">
+        <input 
+          type="text" 
+          id="todoInput" 
+          placeholder="새로운 할 일을 입력하세요... (Enter)" 
+          autocomplete="off"
+          required
+        >
+        <button type="submit" class="primary-btn">추가</button>
+      </div>
+      <div class="input-sub">
+        <div class="option-group">
+          <label for="categorySelect">카테고리</label>
+          <select id="categorySelect">
+            <option value="개인">👤 개인</option>
+            <option value="업무">💼 업무</option>
+            <option value="공부">📚 공부</option>
+            <option value="쇼핑">🛒 쇼핑</option>
+            <option value="기타">📌 기타</option>
+          </select>
+        </div>
+        <div class="option-group">
+          <label for="prioritySelect">우선순위</label>
+          <select id="prioritySelect">
+            <option value="medium">⚡ 보통</option>
+            <option value="high">🔥 높음</option>
+            <option value="low">🌱 낮음</option>
+          </select>
+        </div>
+        <div class="option-group">
+          <label for="dueDateInput">마감일</label>
+          <input type="date" id="dueDateInput">
+        </div>
+      </div>
+    </form>
+
+    <!-- Control Bar (Filters, Search, Sort) -->
+    <div class="control-bar">
+      <div class="filter-tabs">
+        <button class="tab-btn active" data-filter="all">전체</button>
+        <button class="tab-btn" data-filter="active">진행 중</button>
+        <button class="tab-btn" data-filter="completed">완료됨</button>
+      </div>
+      
+      <div class="filter-options">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" placeholder="할 일 검색...">
+        </div>
+        <select id="categoryFilter">
+          <option value="all">전체 카테고리</option>
+          <option value="개인">👤 개인</option>
+          <option value="업무">💼 업무</option>
+          <option value="공부">📚 공부</option>
+          <option value="쇼핑">🛒 쇼핑</option>
+          <option value="기타">📌 기타</option>
+        </select>
+        <select id="sortSelect">
+          <option value="created-desc">최신순</option>
+          <option value="created-asc">오래된순</option>
+          <option value="due-date">마감일 임박순</option>
+          <option value="priority">우선순위순</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Todo List Container -->
+    <main class="todo-main">
+      <ul id="todoList" class="todo-list">
+        <!-- 동적으로 투두 아이템 렌더링 -->
+      </ul>
+
+      <div id="emptyState" class="empty-state hidden">
+        <div class="empty-icon">🏖️</div>
+        <p class="empty-title">할 일이 없습니다</p>
+        <p class="empty-desc">새로운 목표를 추가해 하루를 알차게 채워보세요!</p>
+      </div>
+    </main>
+
+    <!-- Footer Controls -->
+    <footer class="app-footer">
+      <div class="footer-left">
+        <button id="toggleAllBtn" class="text-btn">모두 완료/해제</button>
+      </div>
+      <div class="footer-right">
+        <button id="clearCompletedBtn" class="text-btn danger">완료 항목 삭제</button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
