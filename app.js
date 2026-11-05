@@ -259,12 +259,12 @@ function handleToggleTheme() {
   localStorage.setItem(THEME_KEY, next);
   updateThemeIcon(next);
 }
-  updateThemeIcon(next);
-}
 
 function updateThemeIcon(theme) {
-  const iconSpan = themeToggleBtn.querySelector('.theme-icon');
-  iconSpan.textContent = theme === 'dark' ? '☀️' : '🌙';
+  const labelSpan = themeToggleBtn.querySelector('.theme-label') || themeToggleBtn.querySelector('.theme-icon');
+  if (labelSpan) {
+    labelSpan.textContent = theme === 'dark' ? 'LIGHT' : 'DARK';
+  }
 }
 
 /**
