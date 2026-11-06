@@ -4,6 +4,7 @@
   "description": "HD2Lab Todo Master - Production Static Web Application",
   "type": "module",
   "scripts": {
+    "start": "python3 server.py",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:e2e": "playwright test",
     "test": "npm run test:unit && npm run test:e2e"

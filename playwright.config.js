@@ -13,7 +13,7 @@ export default defineConfig({
     trace: 'on-first-retry'
   },
   webServer: {
-    command: 'python3 -m http.server 8080',
+    command: 'python3 server.py 8080',
     port: 8080,
     reuseExistingServer: !process.env.CI
   },
