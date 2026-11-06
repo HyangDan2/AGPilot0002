@@ -141,18 +141,18 @@ export function loadStoredTodos(storageEngine = null) {
  * Save todos into storage with quota error handling.
  * @param {Array<object>} todos
  * @param {Storage} [storageEngine]
- * @returns {{ success: boolean, error: string|null }}
+ * @returns {{ success: boolean, error: string|null, code: string|null }}
  */
 export function saveStoredTodos(todos, storageEngine = null) {
   const storage = getStorage(storageEngine);
   if (!storage) {
-    return { success: false, error: '저장소가 준비되지 않았습니다.' };
+    return { success: false, error: '저장소를 사용할 수 없습니다.', code: 'STORAGE_UNAVAILABLE' };
   }
 
   try {
     const serialized = JSON.stringify(todos);
     storage.setItem(STORAGE_KEY, serialized);
-    return { success: true, error: null };
+    return { success: true, error: null, code: null };
   } catch (err) {
     // QuotaExceededError check
     const isQuota =
@@ -160,11 +160,12 @@ export function saveStoredTodos(todos, storageEngine = null) {
       err.code === 22 ||
       err.name === 'NS_ERROR_DOM_QUOTA_REACHED';
 
+    const code = isQuota ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR';
     const errorMsg = isQuota
       ? '브라우저 저장 공간이 가득 차 데이터를 저장할 수 없습니다.'
       : `저장 실패: ${err.message || '알 수 없는 오류'}`;
 
-    return { success: false, error: errorMsg };
+    return { success: false, error: errorMsg, code };
   }
 }
 
@@ -188,5 +189,9 @@ export function loadStoredTheme(storageEngine = null) {
 export function saveStoredTheme(theme, storageEngine = null) {
   const storage = getStorage(storageEngine);
   if (!storage) return;
-  storage.setItem(THEME_KEY, theme === 'light' ? 'light' : 'dark');
+  try {
+    storage.setItem(THEME_KEY, theme === 'light' ? 'light' : 'dark');
+  } catch (err) {
+    console.warn('Failed to persist theme choice:', err);
+  }
 }

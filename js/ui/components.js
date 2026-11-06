@@ -72,6 +72,7 @@ export function createTodoCardElement(todo, handlers, isSubtasksExpanded = false
       <div class="item-actions">
         <button type="button" class="action-btn move-up-btn" title="위로 이동" aria-label="위로 이동">↑</button>
         <button type="button" class="action-btn move-down-btn" title="아래로 이동" aria-label="아래로 이동">↓</button>
+        <button type="button" class="action-btn edit-modal-btn" title="상세 정보 수정" aria-label="상세 정보 수정">⚙️</button>
         <button type="button" class="action-btn edit-btn" title="수정" aria-label="할 일 수정">✏️</button>
         <button type="button" class="action-btn delete-btn" title="삭제" aria-label="할 일 삭제">🗑️</button>
       </div>
@@ -175,6 +176,11 @@ export function createTodoCardElement(todo, handlers, isSubtasksExpanded = false
   editBtn.addEventListener('click', startEdit);
   cancelInlineBtn.addEventListener('click', cancelEdit);
 
+  const editModalBtn = li.querySelector('.edit-modal-btn');
+  if (editModalBtn && handlers.onEditFull) {
+    editModalBtn.addEventListener('click', () => handlers.onEditFull(todo));
+  }
+
   inlineForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const newTitle = inlineInput.value.trim();
@@ -222,6 +228,12 @@ export function getContextualEmptyState(filter, searchQuery) {
   }
 
   switch (filter) {
+    case 'focus':
+      return {
+        icon: '🎯',
+        title: '오늘 집중할 항목이 없습니다',
+        desc: '오늘 마감인 작업이나 지연된 항목, 높은 우선순위 작업이 없습니다. 여유로운 하루를 보내세요!'
+      };
     case 'today':
       return {
         icon: '☀️',

@@ -4,15 +4,18 @@
 
 import { Store } from './js/state/store.js';
 import { loadStoredTodos, loadStoredTheme } from './js/services/storage.js';
-import { createExportPayload, validateBackupPayload, downloadBackupFile, mergeTodos } from './js/services/backup.js';
+import { createExportPayload, validateBackupPayload, downloadBackupFile, mergeTodosSafely, analyzeBackupDuplicates } from './js/services/backup.js';
 import { createTodoCardElement, getContextualEmptyState } from './js/ui/components.js';
 import { ToastManager } from './js/ui/toast.js';
 import { ModalController } from './js/ui/modal.js';
 import { DragDropController } from './js/ui/dnd.js';
+import { parseSmartTaskInput } from './js/utils/parser.js';
+import { escapeHTML } from './js/utils/security.js';
 
 // DOM Element References
 const todoForm = document.getElementById('todoForm');
 const todoInput = document.getElementById('todoInput');
+const smartInputPreview = document.getElementById('smartInputPreview');
 const categorySelect = document.getElementById('categorySelect');
 const prioritySelect = document.getElementById('prioritySelect');
 const recurrenceSelect = document.getElementById('recurrenceSelect');
@@ -25,6 +28,7 @@ const statTotal = document.getElementById('statTotal');
 const statActive = document.getElementById('statActive');
 const statDone = document.getElementById('statDone');
 const statOverdue = document.getElementById('statOverdue');
+const progressBarBg = document.querySelector('.progress-bar-bg');
 const progressBar = document.getElementById('progressBar');
 const progressPercent = document.getElementById('progressPercent');
 
@@ -56,6 +60,15 @@ const store = new Store({
   theme: initialTheme
 });
 
+// Storage failure error notification handler
+store.onStorageError = (errInfo) => {
+  toast.show({
+    message: errInfo.lastError || '저장 공간 부족 등으로 인해 데이터가 영구 저장되지 못했습니다.',
+    type: 'error',
+    duration: 6000
+  });
+};
+
 if (initialStorage.error) {
   setTimeout(() => {
     toast.show({ message: initialStorage.error, type: 'warning', duration: 6000 });
@@ -71,28 +84,87 @@ const dnd = new DragDropController({
 });
 
 /**
+ * Update live smart input token preview
+ */
+function updateSmartInputPreview() {
+  if (!smartInputPreview) return;
+  const val = todoInput.value.trim();
+  if (!val) {
+    smartInputPreview.classList.add('hidden');
+    smartInputPreview.innerHTML = '';
+    return;
+  }
+
+  const parsed = parseSmartTaskInput(val);
+  const chips = [];
+
+  if (parsed.dueDate) {
+    chips.push(`<span class="smart-chip due">📅 ${parsed.dueDate}</span>`);
+  }
+  if (parsed.category) {
+    chips.push(`<span class="smart-chip category">🏷️ #${escapeHTML(parsed.category)}</span>`);
+  }
+  if (parsed.priority) {
+    const pLabel = parsed.priority === 'high' ? '🔥 높음' : (parsed.priority === 'low' ? '🌱 낮음' : '⚡ 보통');
+    chips.push(`<span class="smart-chip priority-${parsed.priority}">!${pLabel}</span>`);
+  }
+  if (parsed.recurrence && parsed.recurrence !== 'none') {
+    const rLabel = parsed.recurrence === 'daily' ? '매일' : (parsed.recurrence === 'weekly' ? '매주' : '매월');
+    chips.push(`<span class="smart-chip recurrence">🔁 ${rLabel}</span>`);
+  }
+
+  if (chips.length > 0) {
+    smartInputPreview.innerHTML = `
+      <span class="smart-preview-title">⚡ 스마트 감지:</span>
+      ${chips.join('')}
+      <span class="smart-clean-title" style="color: var(--muted); margin-left: auto;">제목: "${escapeHTML(parsed.title)}"</span>
+    `;
+    smartInputPreview.classList.remove('hidden');
+  } else {
+    smartInputPreview.classList.add('hidden');
+    smartInputPreview.innerHTML = '';
+  }
+}
+
+/**
  * Setup All Event Listeners
  */
 function setupEvents() {
+  // 0. Live input parsing
+  todoInput.addEventListener('input', updateSmartInputPreview);
+
   // 1. Add Todo Form
   todoForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const title = todoInput.value.trim();
-    if (!title) return;
+    const rawValue = todoInput.value.trim();
+    if (!rawValue) return;
 
     try {
+      const parsed = parseSmartTaskInput(rawValue);
+      const category = parsed.category || (categorySelect ? categorySelect.value : '개인');
+      const priority = parsed.priority || (prioritySelect ? prioritySelect.value : 'medium');
+      const recurrence = (parsed.recurrence && parsed.recurrence !== 'none')
+        ? parsed.recurrence
+        : (recurrenceSelect ? recurrenceSelect.value : 'none');
+      const dueDate = parsed.dueDate || (dueDateInput ? dueDateInput.value : '');
+
       store.addTodo({
-        title,
-        category: categorySelect ? categorySelect.value : '개인',
-        priority: prioritySelect ? prioritySelect.value : 'medium',
-        recurrence: recurrenceSelect ? recurrenceSelect.value : 'none',
-        dueDate: dueDateInput ? dueDateInput.value : ''
+        title: parsed.title,
+        category,
+        priority,
+        recurrence,
+        dueDate
       });
 
       todoInput.value = '';
       if (dueDateInput) dueDateInput.value = '';
       if (recurrenceSelect) recurrenceSelect.value = 'none';
+      updateSmartInputPreview();
       todoInput.focus();
+
+      if (store.storageStatus && !store.storageStatus.isOk) {
+        return;
+      }
 
       toast.show({ message: '할 일이 추가되었습니다.', type: 'success', duration: 2500 });
     } catch (err) {
@@ -159,9 +231,13 @@ function setupEvents() {
           return;
         }
 
+        const analysis = analyzeBackupDuplicates(store.todos, validation.validTodos);
+
         const choice = await modal.showImportPreview({
           totalCount: validation.totalCount,
           validCount: validation.validTodos.length,
+          newCount: analysis.newCount,
+          duplicateCount: analysis.duplicateCount,
           invalidCount: validation.invalidCount,
           existingCount: store.todos.length
         });
@@ -171,9 +247,9 @@ function setupEvents() {
           store.notify();
           toast.show({ message: `${validation.validTodos.length}개 항목으로 덮어썼습니다.`, type: 'success' });
         } else if (choice === 'merge') {
-          store.todos = mergeTodos(store.todos, validation.validTodos);
+          store.todos = mergeTodosSafely(store.todos, validation.validTodos);
           store.notify();
-          toast.show({ message: `${validation.validTodos.length}개 항목을 병합했습니다.`, type: 'success' });
+          toast.show({ message: `${analysis.newCount}개 신규 항목을 병합했습니다. (중복 ${analysis.duplicateCount}개 건너뜀)`, type: 'success' });
         }
       } catch (err) {
         toast.show({ message: '파일 복원 처리 중 오류가 발생했습니다.', type: 'error' });
@@ -205,8 +281,19 @@ function setupEvents() {
     });
 
     if (confirmed) {
-      store.clearCompleted();
-      toast.show({ message: `완료 항목 ${completedCount}개가 삭제되었습니다.`, type: 'success' });
+      const { count, undoId } = store.clearCompleted();
+      toast.show({
+        message: `완료 항목 ${count}개가 삭제되었습니다.`,
+        type: 'warning',
+        duration: 7000,
+        action: {
+          label: '실행 취소',
+          onClick: () => {
+            store.undo(undoId);
+            toast.show({ message: '완료 항목 삭제가 취소되었습니다.', type: 'success', duration: 2000 });
+          }
+        }
+      });
     }
   });
 
@@ -275,12 +362,34 @@ function render() {
           onToggle: (id) => {
             const updated = store.toggleTodo(id);
             if (updated && updated.completed) {
-              toast.show({ message: '할 일을 완료했습니다! 🎉', type: 'success', duration: 2000 });
+              if (updated.undoId) {
+                toast.show({
+                  message: '반복 할 일이 완료되고 다음 일정이 자동 등록되었습니다. 🎉',
+                  type: 'success',
+                  duration: 6000,
+                  action: {
+                    label: '실행 취소',
+                    onClick: () => {
+                      store.undo(updated.undoId);
+                      toast.show({ message: '반복 완료가 취소되었습니다.', type: 'info', duration: 2000 });
+                    }
+                  }
+                });
+              } else {
+                toast.show({ message: '할 일을 완료했습니다! 🎉', type: 'success', duration: 2000 });
+              }
             }
           },
           onUpdateTitle: (id, newTitle) => {
             store.updateTodo(id, { title: newTitle });
             toast.show({ message: '할 일이 수정되었습니다.', type: 'info', duration: 2000 });
+          },
+          onEditFull: async (todo) => {
+            const updatedData = await modal.showEditTaskModal(todo);
+            if (updatedData) {
+              store.updateTodo(todo.id, updatedData);
+              toast.show({ message: '할 일 상세 정보가 저장되었습니다.', type: 'success', duration: 2500 });
+            }
           },
           onDelete: (id) => {
             const deleted = store.deleteTodo(id);
@@ -292,7 +401,7 @@ function render() {
                 action: {
                   label: '실행 취소',
                   onClick: () => {
-                    store.undoDelete();
+                    store.undo(deleted.undoId);
                     toast.show({ message: '삭제가 취소되었습니다.', type: 'success', duration: 2000 });
                   }
                 }
@@ -341,7 +450,11 @@ function render() {
     statOverdue.textContent = stats.overdue;
     statOverdue.closest('.stat-item').style.display = stats.overdue > 0 ? 'flex' : 'none';
   }
-  if (progressBar) progressBar.style.width = `${stats.percent}%`;
+  if (progressBarBg) progressBarBg.setAttribute('aria-valuenow', stats.percent);
+  if (progressBar) {
+    progressBar.style.width = `${stats.percent}%`;
+    progressBar.setAttribute('aria-valuenow', stats.percent);
+  }
   if (progressPercent) progressPercent.textContent = `${stats.percent}%`;
 }
 

@@ -3,7 +3,7 @@
  */
 
 import { generateId, sanitizeText } from '../utils/security.js';
-import { getLocalDateString } from '../utils/date.js';
+import { getLocalDateString, parseLocalDate } from '../utils/date.js';
 
 export const VALID_PRIORITIES = ['high', 'medium', 'low'];
 export const VALID_CATEGORIES = ['개인', '업무', '공부', '쇼핑', '기타'];
@@ -99,7 +99,9 @@ export function validateAndSanitizeTodo(raw, fallbackOrder = 0) {
 
   let dueDate = '';
   if (typeof raw.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dueDate.trim())) {
-    dueDate = raw.dueDate.trim();
+    if (parseLocalDate(raw.dueDate.trim()) !== null) {
+      dueDate = raw.dueDate.trim();
+    }
   }
 
   const completed = Boolean(raw.completed || raw.isCompleted);
@@ -126,15 +128,21 @@ export function validateAndSanitizeTodo(raw, fallbackOrder = 0) {
 
   const order = typeof raw.order === 'number' && !isNaN(raw.order) ? raw.order : fallbackOrder;
 
-  // Validate Subtasks
+  // Validate Subtasks with unique IDs
   let subtasks = [];
+  const seenSubtaskIds = new Set();
   if (Array.isArray(raw.subtasks)) {
     subtasks = raw.subtasks
       .map(st => {
         if (!st) return null;
         if (typeof st === 'string') return createSubtask(st);
         if (typeof st === 'object' && typeof st.title === 'string') {
-          return createSubtask(st.title, st.completed, st.id);
+          let sId = typeof st.id === 'string' && st.id.trim() ? st.id.trim() : generateId('sub');
+          if (seenSubtaskIds.has(sId)) {
+            sId = generateId('sub');
+          }
+          seenSubtaskIds.add(sId);
+          return createSubtask(st.title, st.completed, sId);
         }
         return null;
       })

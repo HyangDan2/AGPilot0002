@@ -2,6 +2,51 @@
 
 All notable changes to this project are documented in this file.
 
+## [2.1.0] - 2026-11-06
+
+### 🛡️ Critical Reliability & Data Integrity (P0)
+- **Explicit Storage Failure Propagation & Rollback**:
+  - `Store.persist()` captures storage failure codes (`QUOTA_EXCEEDED`, `STORAGE_UNAVAILABLE`, `STORAGE_ERROR`) and dispatches notifications via `onStorageError`.
+  - Added `rollbackToLastPersisted()` to safely revert in-memory changes when browser storage write fails.
+  - Added failure-injection unit tests ensuring user data is never silently lost.
+- **Multi-Delete Undo Integrity**:
+  - Replaced single `lastDeletedItem` with operation-specific `undoRegistry` (Map).
+  - Supports multiple consecutive deletions with independent undo actions without race conditions.
+  - Supports undoing batch operations (`clearCompleted`) and completing recurring tasks.
+  - Guaranteed deduplication on restoration.
+- **Modal Lifecycle Single-Resolution Guarantee**:
+  - Refactored `ModalController` to ensure every dialog promise resolves exactly once across Confirm, Cancel, ESC key, native `cancel` event, and backdrop click.
+  - Added comprehensive `showEditTaskModal(todo)` for editing title, category, priority, recurrence, due date, and subtasks.
+- **Strict Backup Validation & Safe Merge**:
+  - Rejection of unsupported future versions and item-count limits (> 5000) as safety guard.
+  - Added `analyzeBackupDuplicates(existing, incoming)` returning New / Duplicate / Invalid breakdown.
+  - Added `mergeTodosSafely(existing, incoming)` preventing duplicate task insertion while updating existing tasks safely.
+
+### ⚙️ Logic Consistency (P1)
+- **Recurring Task Engine**:
+  - Unified individual and batch (`toggleAll()`) recurring task completion behavior.
+  - Accurate date calculation handling month-end (e.g. Jan 31 -> Feb 28) and leap years.
+  - Overdue recurring task calculation relative to current date to avoid cascading overdue cycles.
+  - Explicit undo support reverting completion and deleting the auto-scheduled occurrence.
+- **Filtering & Reordering Stability**:
+  - Stable deterministic sorting with fractional order calculation.
+  - Order preserved across filter switches and page reloads.
+- **Accessibility & Focus**:
+  - Progress bar `aria-valuenow` synchronization with completion percentages.
+  - WCAG 2.2 AA touch target compliance (>= 38px–44px hit areas on mobile).
+
+### ⚡ Productivity UX Enhancements
+- **Rule-Based Korean Smart Task Input Parser (`js/utils/parser.js`)**:
+  - Parses Korean relative dates (`오늘`, `내일`, `모레`), weekdays (`금요일`, `다음주 월요일`), categories (`#업무`, `#개인`, `#쇼핑`), priorities (`!높음`, `!보통`, `!낮음`), and recurrence (`매일`, `매주`, `매월`).
+  - Zero external API dependencies; 100% deterministic local regex/date calculations.
+  - Real-time preview chip banner beneath the input field.
+- **Today Focus Mode (🎯 오늘 포커스)**:
+  - Contextual daily focus view prioritizing overdue items, today's due tasks, and active high-priority items.
+- **Performance Benchmarks**:
+  - Verified < 50ms performance threshold for 1,000 tasks creation, filtering, stats calculation, and backup validation.
+- **Continuous Integration (CI)**:
+  - Added `.github/workflows/ci.yml` running unit tests and Playwright E2E tests automatically.
+
 ## [2.0.0] - 2026-11-06
 
 ### 🚀 Major Architectural Refactoring (Phase 1)

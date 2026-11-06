@@ -3,7 +3,7 @@
  * Provides offline caching for static assets.
  */
 
-const CACHE_NAME = 'hd2lab-todo-v2.0.0';
+const CACHE_NAME = 'hd2lab-todo-v2.1.0';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -21,6 +21,7 @@ const STATIC_ASSETS = [
   './js/services/backup.js',
   './js/utils/date.js',
   './js/utils/security.js',
+  './js/utils/parser.js',
   './js/ui/components.js',
   './js/ui/toast.js',
   './js/ui/modal.js',
