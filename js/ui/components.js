@@ -24,9 +24,9 @@ const RECURRENCE_LABELS = {
  * @param {Date} [baseDate=new Date()]
  * @returns {HTMLLIElement}
  */
-export function createTodoCardElement(todo, handlers, isSubtasksExpanded = false, baseDate = new Date()) {
+export function createTodoCardElement(todo, handlers, isSubtasksExpanded = false, baseDate = new Date(), density = 'comfortable') {
   const li = document.createElement('li');
-  li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
+  li.className = `todo-item ${todo.completed ? 'completed' : ''} ${density === 'compact' ? 'density-compact' : ''}`;
   li.dataset.id = todo.id;
   li.setAttribute('draggable', 'true');
 
@@ -173,6 +173,11 @@ export function createTodoCardElement(todo, handlers, isSubtasksExpanded = false
   };
 
   titleSpan.addEventListener('dblclick', startEdit);
+  titleSpan.addEventListener('click', () => {
+    if (handlers.onSelectTodo) {
+      handlers.onSelectTodo(todo.id);
+    }
+  });
   editBtn.addEventListener('click', startEdit);
   cancelInlineBtn.addEventListener('click', cancelEdit);
 

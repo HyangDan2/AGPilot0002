@@ -5,7 +5,7 @@
 import { createTodo, createSubtask } from '../models/todo.js';
 import { calculateDDay, calculateNextRecurringDate, getLocalDateString } from '../utils/date.js';
 import { generateId, sanitizeText } from '../utils/security.js';
-import { saveStoredTodos, saveStoredTheme } from '../services/storage.js';
+import { saveStoredTodos, saveStoredTheme, saveStoredUiPrefs } from '../services/storage.js';
 
 export class Store {
   /**
@@ -13,16 +13,29 @@ export class Store {
    * @param {Array<object>} [initialOptions.todos=[]]
    * @param {'dark'|'light'} [initialOptions.theme='dark']
    * @param {Storage} [initialOptions.storageEngine=null]
+   * @param {boolean} [initialOptions.autoRollback=true]
+   * @param {object} [initialOptions.uiPrefs={}]
    */
-  constructor({ todos = [], theme = 'dark', storageEngine = null, autoRollback = true } = {}) {
+  constructor({ todos = [], theme = 'dark', storageEngine = null, autoRollback = true, uiPrefs = {} } = {}) {
     this.storageEngine = storageEngine;
     this.todos = Array.isArray(todos) ? [...todos] : [];
     this.theme = theme;
 
-    this.filter = 'all'; // 'all' | 'today' | 'upcoming' | 'overdue' | 'active' | 'completed' | 'focus'
+    this.filter = 'all'; // 'all' | 'today' | 'upcoming' | 'overdue' | 'active' | 'completed' | 'focus' | 'inbox'
     this.category = 'all';
     this.searchQuery = '';
     this.sort = 'manual'; // 'manual' | 'created-desc' | 'created-asc' | 'due-date' | 'priority'
+
+    // UI Preferences & Workspace Navigation State
+    const validSizes = [10, 20, 50];
+    this.pageSize = validSizes.includes(uiPrefs.pageSize) ? uiPrefs.pageSize : 10;
+    this.currentPage = 1;
+    this.workspaceView = ['list', 'calendar', 'dashboard', 'inbox'].includes(uiPrefs.workspaceView) ? uiPrefs.workspaceView : 'list';
+    this.displayDensity = ['comfortable', 'compact'].includes(uiPrefs.displayDensity) ? uiPrefs.displayDensity : 'comfortable';
+    this.groupBy = ['none', 'category', 'priority', 'status', 'dueDate'].includes(uiPrefs.groupBy) ? uiPrefs.groupBy : 'none';
+    this.calendarMode = ['month', 'week'].includes(uiPrefs.calendarMode) ? uiPrefs.calendarMode : 'month';
+    this.selectedDate = uiPrefs.selectedDate || getLocalDateString(new Date());
+    this.selectedTodoId = null;
 
     this.subscribers = new Set();
     this.lastDeletedItem = null;
@@ -64,6 +77,14 @@ export class Store {
   persist() {
     const res = saveStoredTodos(this.todos, this.storageEngine);
     saveStoredTheme(this.theme, this.storageEngine);
+    saveStoredUiPrefs({
+      pageSize: this.pageSize,
+      workspaceView: this.workspaceView,
+      displayDensity: this.displayDensity,
+      groupBy: this.groupBy,
+      calendarMode: this.calendarMode,
+      selectedDate: this.selectedDate
+    }, this.storageEngine);
 
     if (!res.success) {
       this.storageStatus = { isOk: false, lastError: res.error, code: res.code };
@@ -566,6 +587,8 @@ export class Store {
           return !todo.completed;
         case 'completed':
           return todo.completed;
+        case 'inbox':
+          return !todo.completed && (!todo.dueDate || todo.dueDate === '');
         case 'today':
           return !todo.completed && todo.dueDate === todayStr;
         case 'focus': {
@@ -630,5 +653,183 @@ export class Store {
     const percent = total === 0 ? 0 : Math.round((done / total) * 100);
 
     return { total, active, done, overdue, percent };
+  }
+
+  // Workspace View & UI Preferences
+  setWorkspaceView(view) {
+    if (!['list', 'calendar', 'dashboard', 'inbox'].includes(view)) return;
+    this.workspaceView = view;
+    if (view === 'inbox') {
+      this.filter = 'inbox';
+    }
+    this.notify();
+  }
+
+  setDisplayDensity(density) {
+    if (!['comfortable', 'compact'].includes(density)) return;
+    this.displayDensity = density;
+    this.notify();
+  }
+
+  setGroupBy(groupBy) {
+    if (!['none', 'category', 'priority', 'status', 'dueDate'].includes(groupBy)) return;
+    this.groupBy = groupBy;
+    this.notify();
+  }
+
+  setCalendarMode(mode) {
+    if (!['month', 'week'].includes(mode)) return;
+    this.calendarMode = mode;
+    this.notify();
+  }
+
+  setSelectedDate(dateStr) {
+    this.selectedDate = dateStr;
+    this.selectedTodoId = null;
+    this.notify();
+  }
+
+  setSelectedTodo(todoId) {
+    this.selectedTodoId = todoId;
+    this.notify();
+  }
+
+  // Pagination Operations
+  setPage(page) {
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    this.currentPage = p;
+    this.notify();
+  }
+
+  setPageSize(size) {
+    const s = parseInt(size, 10);
+    if (![10, 20, 50].includes(s)) return;
+    this.pageSize = s;
+    this.currentPage = 1;
+    this.notify();
+  }
+
+  getPaginatedTodos(baseDate = new Date()) {
+    const fullList = this.getFilteredAndSortedTodos(baseDate);
+    const totalItems = fullList.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / this.pageSize));
+
+    if (this.currentPage > totalPages) {
+      this.currentPage = totalPages;
+    }
+    if (this.currentPage < 1) {
+      this.currentPage = 1;
+    }
+
+    const startIndex = (this.currentPage - 1) * this.pageSize;
+    const items = fullList.slice(startIndex, startIndex + this.pageSize);
+
+    return {
+      items,
+      fullList,
+      totalItems,
+      totalPages,
+      currentPage: this.currentPage,
+      pageSize: this.pageSize,
+      startIndex,
+      endIndex: Math.min(startIndex + items.length, totalItems)
+    };
+  }
+
+  // Grouping Operations
+  getGroupedTodos(items) {
+    if (!items || items.length === 0) return [];
+    if (this.groupBy === 'none') {
+      return [{ key: 'all', title: '', items }];
+    }
+
+    const groupsMap = new Map();
+
+    if (this.groupBy === 'category') {
+      const order = ['개인', '업무', '공부', '쇼핑', '기타'];
+      order.forEach(cat => groupsMap.set(cat, []));
+      items.forEach(todo => {
+        const cat = todo.category || '기타';
+        if (!groupsMap.has(cat)) groupsMap.set(cat, []);
+        groupsMap.get(cat).push(todo);
+      });
+      return Array.from(groupsMap.entries())
+        .filter(([_, list]) => list.length > 0)
+        .map(([key, list]) => ({ key, title: `📁 ${key}`, count: list.length, items: list }));
+    }
+
+    if (this.groupBy === 'priority') {
+      groupsMap.set('high', []);
+      groupsMap.set('medium', []);
+      groupsMap.set('low', []);
+      items.forEach(todo => {
+        const p = todo.priority || 'medium';
+        if (!groupsMap.has(p)) groupsMap.set(p, []);
+        groupsMap.get(p).push(todo);
+      });
+      const labels = { high: '🔥 높음', medium: '⚡ 보통', low: '🌱 낮음' };
+      return ['high', 'medium', 'low']
+        .filter(key => groupsMap.get(key).length > 0)
+        .map(key => ({ key, title: labels[key], count: groupsMap.get(key).length, items: groupsMap.get(key) }));
+    }
+
+    if (this.groupBy === 'status') {
+      groupsMap.set('active', []);
+      groupsMap.set('completed', []);
+      items.forEach(todo => {
+        const status = todo.completed ? 'completed' : 'active';
+        groupsMap.get(status).push(todo);
+      });
+      const labels = { active: '⏳ 진행 중', completed: '✅ 완료됨' };
+      return ['active', 'completed']
+        .filter(key => groupsMap.get(key).length > 0)
+        .map(key => ({ key, title: labels[key], count: groupsMap.get(key).length, items: groupsMap.get(key) }));
+    }
+
+    if (this.groupBy === 'dueDate') {
+      const todayStr = getLocalDateString(new Date());
+      groupsMap.set('today', []);
+      groupsMap.set('upcoming', []);
+      groupsMap.set('overdue', []);
+      groupsMap.set('noDate', []);
+
+      items.forEach(todo => {
+        if (!todo.dueDate) {
+          groupsMap.get('noDate').push(todo);
+        } else if (todo.dueDate === todayStr) {
+          groupsMap.get('today').push(todo);
+        } else {
+          const dday = calculateDDay(todo.dueDate, new Date());
+          if (dday && dday.diffDays < 0) {
+            groupsMap.get('overdue').push(todo);
+          } else {
+            groupsMap.get('upcoming').push(todo);
+          }
+        }
+      });
+
+      const labels = {
+        overdue: '🚨 기한 초과',
+        today: '📅 오늘 마감',
+        upcoming: '⏳ 예정된 항목',
+        noDate: '📥 마감일 미지정'
+      };
+
+      return ['overdue', 'today', 'upcoming', 'noDate']
+        .filter(key => groupsMap.get(key).length > 0)
+        .map(key => ({ key, title: labels[key], count: groupsMap.get(key).length, items: groupsMap.get(key) }));
+    }
+
+    return [{ key: 'all', title: '', items }];
+  }
+
+  // Calendar Helpers
+  getTodosForDate(dateStr) {
+    if (!dateStr) return [];
+    return this.todos.filter(t => t.dueDate === dateStr);
+  }
+
+  getUnscheduledTodos() {
+    return this.todos.filter(t => !t.completed && (!t.dueDate || t.dueDate === ''));
   }
 }

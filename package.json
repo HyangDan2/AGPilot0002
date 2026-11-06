@@ -1,6 +1,6 @@
 {
   "name": "hd2lab-todo-master",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "HD2Lab Todo Master - Production Static Web Application",
   "type": "module",
   "scripts": {

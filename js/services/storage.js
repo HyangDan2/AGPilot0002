@@ -8,7 +8,17 @@ import { safeJSONParse } from '../utils/security.js';
 
 export const STORAGE_KEY = 'todo_master_items_v1';
 export const THEME_KEY = 'todo_master_theme_v1';
+export const UI_PREFS_KEY = 'todo_master_ui_prefs_v1';
 export const SCHEMA_VERSION = 2;
+
+export const DEFAULT_UI_PREFS = {
+  pageSize: 10,
+  workspaceView: 'list',
+  displayDensity: 'comfortable',
+  groupBy: 'none',
+  calendarMode: 'month',
+  selectedDate: null
+};
 
 /**
  * Returns the active storage engine (window.localStorage or custom mock).
@@ -195,3 +205,56 @@ export function saveStoredTheme(theme, storageEngine = null) {
     console.warn('Failed to persist theme choice:', err);
   }
 }
+
+/**
+ * Load saved UI preferences.
+ * @param {Storage} [storageEngine]
+ * @returns {typeof DEFAULT_UI_PREFS}
+ */
+export function loadStoredUiPrefs(storageEngine = null) {
+  const storage = getStorage(storageEngine);
+  if (!storage) return { ...DEFAULT_UI_PREFS };
+  try {
+    const raw = storage.getItem(UI_PREFS_KEY);
+    if (!raw) return { ...DEFAULT_UI_PREFS };
+    const parsed = safeJSONParse(raw, null);
+    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_UI_PREFS };
+    
+    // Validate fields
+    const pageSize = [10, 20, 50].includes(parsed.pageSize) ? parsed.pageSize : 10;
+    const workspaceView = ['list', 'calendar', 'dashboard', 'inbox'].includes(parsed.workspaceView) ? parsed.workspaceView : 'list';
+    const displayDensity = ['comfortable', 'compact'].includes(parsed.displayDensity) ? parsed.displayDensity : 'comfortable';
+    const groupBy = ['none', 'category', 'priority', 'status', 'dueDate'].includes(parsed.groupBy) ? parsed.groupBy : 'none';
+    const calendarMode = ['month', 'week'].includes(parsed.calendarMode) ? parsed.calendarMode : 'month';
+    const selectedDate = typeof parsed.selectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.selectedDate) ? parsed.selectedDate : null;
+
+    return {
+      pageSize,
+      workspaceView,
+      displayDensity,
+      groupBy,
+      calendarMode,
+      selectedDate
+    };
+  } catch {
+    return { ...DEFAULT_UI_PREFS };
+  }
+}
+
+/**
+ * Save UI preferences.
+ * @param {Partial<typeof DEFAULT_UI_PREFS>} prefs
+ * @param {Storage} [storageEngine]
+ */
+export function saveStoredUiPrefs(prefs, storageEngine = null) {
+  const storage = getStorage(storageEngine);
+  if (!storage) return;
+  try {
+    const current = loadStoredUiPrefs(storage);
+    const updated = { ...current, ...prefs };
+    storage.setItem(UI_PREFS_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Failed to persist UI preferences:', err);
+  }
+}
+
