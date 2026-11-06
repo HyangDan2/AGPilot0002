@@ -14,7 +14,7 @@ export class Store {
    * @param {'dark'|'light'} [initialOptions.theme='dark']
    * @param {Storage} [initialOptions.storageEngine=null]
    */
-  constructor({ todos = [], theme = 'dark', storageEngine = null } = {}) {
+  constructor({ todos = [], theme = 'dark', storageEngine = null, autoRollback = true } = {}) {
     this.storageEngine = storageEngine;
     this.todos = Array.isArray(todos) ? [...todos] : [];
     this.theme = theme;
@@ -31,7 +31,13 @@ export class Store {
 
     // Reliability & Persistence tracking
     this.storageStatus = { isOk: true, lastError: null, code: null };
+    this.autoRollback = autoRollback;
     this.lastPersistedTodos = JSON.parse(JSON.stringify(this.todos));
+
+    // Batch toggle recurrence tracking
+    this.lastToggleAllSpawnedIds = [];
+    this.lastToggleAllCompletedRecurring = new Map();
+    this.lastToggleAllAction = null;
   }
 
   /**
@@ -61,6 +67,9 @@ export class Store {
 
     if (!res.success) {
       this.storageStatus = { isOk: false, lastError: res.error, code: res.code };
+      if (this.autoRollback && this.lastPersistedTodos) {
+        this.todos = JSON.parse(JSON.stringify(this.lastPersistedTodos));
+      }
       if (typeof this.onStorageError === 'function') {
         this.onStorageError(this.storageStatus);
       }
@@ -229,24 +238,31 @@ export class Store {
   }
 
   undo(undoId = null) {
-    let record = null;
-    if (undoId) {
-      record = this.undoRegistry.get(undoId);
-    } else {
-      // Get most recent record from registry
-      const keys = Array.from(this.undoRegistry.keys());
-      if (keys.length > 0) {
-        const lastKey = keys[keys.length - 1];
-        record = this.undoRegistry.get(lastKey);
+    if (undoId !== null && undoId !== undefined) {
+      const record = this.undoRegistry.get(undoId);
+      if (!record) {
+        // Explicit ID requested but not found or already consumed -> never fallback!
+        return null;
       }
+      this.undoRegistry.delete(record.undoId);
+      return this._executeUndoRecord(record);
     }
 
-    if (!record) {
-      // Fallback to legacy lastDeletedItem
-      return this.undoDelete();
+    // No ID provided: get most recent record from registry
+    const keys = Array.from(this.undoRegistry.keys());
+    if (keys.length > 0) {
+      const lastKey = keys[keys.length - 1];
+      const record = this.undoRegistry.get(lastKey);
+      this.undoRegistry.delete(record.undoId);
+      return this._executeUndoRecord(record);
     }
 
-    this.undoRegistry.delete(record.undoId);
+    // Fallback to legacy lastDeletedItem only when registry is empty
+    return this.undoDelete();
+  }
+
+  _executeUndoRecord(record) {
+    if (!record) return null;
 
     if (record.type === 'recurring_completion') {
       // Delete spawned occurrence if not yet completed
@@ -298,6 +314,11 @@ export class Store {
     }
     if (!this.lastDeletedItem) return null;
     const { item, originalIndex } = this.lastDeletedItem;
+    // Prevent duplicate insertion
+    if (this.todos.some(t => t.id === item.id)) {
+      this.lastDeletedItem = null;
+      return null;
+    }
     const safeIndex = Math.min(originalIndex, this.todos.length);
     this.todos.splice(safeIndex, 0, item);
     this.lastDeletedItem = null;
@@ -307,22 +328,71 @@ export class Store {
 
   toggleAll() {
     if (this.todos.length === 0) return;
-    const hasActive = this.todos.some(t => !t.completed);
+    const activeTasks = this.todos.filter(t => !t.completed);
+    const hasActive = activeTasks.length > 0;
     const now = new Date().toISOString();
 
-    if (hasActive) {
-      // Completing all active tasks
-      const newTodos = [];
-      for (const todo of this.todos) {
-        if (!todo.completed) {
-          const completedTask = {
-            ...todo,
-            completed: true,
-            completedAt: todo.completedAt || now,
-            updatedAt: now
-          };
+    // Check if only spawned future cycles from recent toggleAll are active
+    const onlySpawnedActive = hasActive &&
+      this.lastToggleAllSpawnedIds.length > 0 &&
+      activeTasks.every(t => this.lastToggleAllSpawnedIds.includes(t.id));
 
-          if (todo.recurrence && todo.recurrence !== 'none') {
+    if (!hasActive || onlySpawnedActive) {
+      // Toggle to uncompleted:
+      // Remove any temporary spawned occurrences from previous batch
+      if (this.lastToggleAllSpawnedIds.length > 0) {
+        const spawnedSet = new Set(this.lastToggleAllSpawnedIds);
+        this.todos = this.todos.filter(t => !spawnedSet.has(t.id));
+        this.lastToggleAllSpawnedIds = [];
+      }
+
+      // Restore recurrence on recurring tasks that were completed by toggleAll
+      if (this.lastToggleAllCompletedRecurring.size > 0) {
+        for (const [id, origRecurrence] of this.lastToggleAllCompletedRecurring.entries()) {
+          const t = this.todos.find(item => item.id === id);
+          if (t) {
+            t.recurrence = origRecurrence;
+          }
+        }
+        this.lastToggleAllCompletedRecurring.clear();
+      }
+
+      // Mark all remaining tasks as not completed
+      for (const t of this.todos) {
+        t.completed = false;
+        t.completedAt = null;
+        t.updatedAt = now;
+      }
+
+      this.lastToggleAllAction = 'uncompleted';
+      this.notify();
+      return;
+    }
+
+    // Otherwise, complete all active tasks
+    this.lastToggleAllSpawnedIds = [];
+    this.lastToggleAllCompletedRecurring = new Map();
+    const newTodos = [];
+
+    for (const todo of this.todos) {
+      if (!todo.completed) {
+        const completedTask = {
+          ...todo,
+          completed: true,
+          completedAt: todo.completedAt || now,
+          updatedAt: now
+        };
+
+        if (todo.recurrence && todo.recurrence !== 'none') {
+          // Check if an active occurrence for this recurring series already exists in the list
+          const alreadyHasActiveNext = this.todos.some(t =>
+            t.title === todo.title &&
+            !t.completed &&
+            t.id !== todo.id &&
+            t.recurrence === todo.recurrence
+          );
+
+          if (!alreadyHasActiveNext) {
             const nextDueDate = calculateNextRecurringDate(todo.dueDate, todo.recurrence);
             const nextTodo = createTodo({
               title: todo.title,
@@ -333,26 +403,25 @@ export class Store {
               order: (todo.order || 0) - 0.5,
               subtasks: todo.subtasks.map(st => ({ title: st.title, completed: false }))
             });
+
+            this.lastToggleAllSpawnedIds.push(nextTodo.id);
+            this.lastToggleAllCompletedRecurring.set(completedTask.id, todo.recurrence);
             completedTask.recurrence = 'none';
             newTodos.push(completedTask, nextTodo);
           } else {
+            completedTask.recurrence = 'none';
             newTodos.push(completedTask);
           }
         } else {
-          newTodos.push(todo);
+          newTodos.push(completedTask);
         }
+      } else {
+        newTodos.push(todo);
       }
-      this.todos = newTodos;
-    } else {
-      // Uncompleting all
-      this.todos = this.todos.map(t => ({
-        ...t,
-        completed: false,
-        completedAt: null,
-        updatedAt: now
-      }));
     }
 
+    this.todos = newTodos;
+    this.lastToggleAllAction = 'completed';
     this.notify();
   }
 
@@ -503,7 +572,8 @@ export class Store {
           const isOverdue = !todo.completed && todo.dueDate && calculateDDay(todo.dueDate, baseDate)?.diffDays < 0;
           const isTodayActive = !todo.completed && todo.dueDate === todayStr;
           const isHighActive = !todo.completed && todo.priority === 'high';
-          const isTodayCompleted = todo.completed && todo.completedAt && todo.completedAt.startsWith(todayStr);
+          const isTodayCompleted = todo.completed && todo.completedAt &&
+            getLocalDateString(new Date(todo.completedAt)) === todayStr;
           return isOverdue || isTodayActive || isHighActive || isTodayCompleted;
         }
         case 'upcoming': {

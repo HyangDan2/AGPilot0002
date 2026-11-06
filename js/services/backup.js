@@ -6,7 +6,7 @@ import { validateAndSanitizeTodo } from '../models/todo.js';
 import { generateId, safeJSONParse } from '../utils/security.js';
 import { getLocalDateString } from '../utils/date.js';
 
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 2.1;
 export const APP_IDENTIFIER = 'HD2Lab Todo Master';
 
 /**
@@ -150,8 +150,31 @@ export function validateBackupPayload(rawInput) {
 }
 
 /**
+ * Computes a normalized composite content signature for duplicate detection.
+ * Distinct tasks sharing title & date (but with different categories, priorities, or subtasks)
+ * produce different signatures and will not be discarded.
+ * @param {object} todo
+ * @returns {string}
+ */
+export function getTodoContentSignature(todo) {
+  if (!todo) return '';
+  const subtasksSig = (Array.isArray(todo.subtasks) ? todo.subtasks : [])
+    .map(s => `${(s.title || '').trim()}:${Boolean(s.completed)}`)
+    .sort()
+    .join('|');
+  return [
+    (todo.title || '').trim(),
+    todo.dueDate || '',
+    todo.category || '개인',
+    todo.priority || 'medium',
+    todo.recurrence || 'none',
+    subtasksSig
+  ].join('::');
+}
+
+/**
  * Analyzes duplicates between existing todos and incoming backup todos.
- * A task is considered duplicate if it shares the same ID OR (same title + same dueDate).
+ * A task is considered a duplicate if it shares the same ID OR the exact same content signature.
  * @param {Array<object>} existingTodos
  * @param {Array<object>} incomingTodos
  * @returns {{
@@ -163,17 +186,17 @@ export function validateBackupPayload(rawInput) {
  */
 export function analyzeBackupDuplicates(existingTodos, incomingTodos) {
   const existingIdSet = new Set(existingTodos.map(t => t.id));
-  const existingKeySet = new Set(existingTodos.map(t => `${t.title.trim()}_${t.dueDate || ''}`));
+  const existingSigSet = new Set(existingTodos.map(t => getTodoContentSignature(t)));
 
   let duplicateCount = 0;
   const duplicates = [];
 
   incomingTodos.forEach(item => {
     const isDupId = existingIdSet.has(item.id);
-    const key = `${item.title.trim()}_${item.dueDate || ''}`;
-    const isDupKey = existingKeySet.has(key);
+    const sig = getTodoContentSignature(item);
+    const isDupContent = existingSigSet.has(sig);
 
-    if (isDupId || isDupKey) {
+    if (isDupId || isDupContent) {
       duplicateCount++;
       duplicates.push(item);
     }
@@ -195,15 +218,15 @@ export function analyzeBackupDuplicates(existingTodos, incomingTodos) {
  */
 export function mergeTodosSafely(existingTodos, importedTodos) {
   const existingIdSet = new Set(existingTodos.map(t => t.id));
-  const existingKeySet = new Set(existingTodos.map(t => `${t.title.trim()}_${t.dueDate || ''}`));
+  const existingSigSet = new Set(existingTodos.map(t => getTodoContentSignature(t)));
 
   const merged = [...existingTodos];
   let maxOrder = existingTodos.reduce((max, t) => Math.max(max, t.order || 0), -1);
 
   importedTodos.forEach(imported => {
-    const key = `${imported.title.trim()}_${imported.dueDate || ''}`;
-    // If exact duplicate exists, skip to prevent unintended duplication
-    if (existingIdSet.has(imported.id) || existingKeySet.has(key)) {
+    const sig = getTodoContentSignature(imported);
+    // If exact duplicate exists by ID or complete content signature, skip
+    if (existingIdSet.has(imported.id) || existingSigSet.has(sig)) {
       return;
     }
 
@@ -212,7 +235,7 @@ export function mergeTodosSafely(existingTodos, importedTodos) {
       item.id = generateId('todo');
     }
     existingIdSet.add(item.id);
-    existingKeySet.add(key);
+    existingSigSet.add(sig);
 
     maxOrder++;
     item.order = maxOrder;

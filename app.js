@@ -79,6 +79,7 @@ if (initialStorage.error) {
 const dnd = new DragDropController({
   onReorder: (sourceId, targetId) => {
     store.reorderTodos(sourceId, targetId);
+    if (!store.storageStatus.isOk) return;
     toast.show({ message: '순서가 변경되었습니다.', type: 'info', duration: 2000 });
   }
 });
@@ -282,6 +283,7 @@ function setupEvents() {
 
     if (confirmed) {
       const { count, undoId } = store.clearCompleted();
+      if (!store.storageStatus.isOk) return;
       toast.show({
         message: `완료 항목 ${count}개가 삭제되었습니다.`,
         type: 'warning',
@@ -361,6 +363,7 @@ function render() {
         {
           onToggle: (id) => {
             const updated = store.toggleTodo(id);
+            if (!store.storageStatus.isOk) return;
             if (updated && updated.completed) {
               if (updated.undoId) {
                 toast.show({
@@ -382,17 +385,20 @@ function render() {
           },
           onUpdateTitle: (id, newTitle) => {
             store.updateTodo(id, { title: newTitle });
+            if (!store.storageStatus.isOk) return;
             toast.show({ message: '할 일이 수정되었습니다.', type: 'info', duration: 2000 });
           },
           onEditFull: async (todo) => {
             const updatedData = await modal.showEditTaskModal(todo);
             if (updatedData) {
               store.updateTodo(todo.id, updatedData);
+              if (!store.storageStatus.isOk) return;
               toast.show({ message: '할 일 상세 정보가 저장되었습니다.', type: 'success', duration: 2500 });
             }
           },
           onDelete: (id) => {
             const deleted = store.deleteTodo(id);
+            if (!store.storageStatus.isOk) return;
             if (deleted) {
               toast.show({
                 message: `"${deleted.title}" 항목이 삭제되었습니다.`,

@@ -20,9 +20,9 @@ class FailingStorage {
 }
 
 describe('P0 - Storage Failure & Recovery', () => {
-  it('Store.persist() must catch failure, set storageStatus, and notify subscriber', () => {
+  it('Store.persist() must catch failure, set storageStatus, and auto-rollback memory state', () => {
     const failingStorage = new FailingStorage(true);
-    const store = new Store({ storageEngine: failingStorage });
+    const store = new Store({ storageEngine: failingStorage, autoRollback: true });
 
     let receivedEvent = null;
     store.onStorageError = (errInfo) => {
@@ -38,10 +38,20 @@ describe('P0 - Storage Failure & Recovery', () => {
     assert.ok(receivedEvent);
     assert.equal(receivedEvent.code, 'QUOTA_EXCEEDED');
 
-    // Rollback to last persisted state
+    // Auto-rollback must have reverted todos in memory to last persisted state (0 items)
+    assert.equal(store.todos.length, 0, 'Auto-rollback must revert to 0 items on failure');
+  });
+
+  it('Store manual rollback works when autoRollback is disabled', () => {
+    const failingStorage = new FailingStorage(true);
+    const store = new Store({ storageEngine: failingStorage, autoRollback: false });
+
+    store.addTodo({ title: '수동 롤백 테스트' });
+    assert.equal(store.storageStatus.isOk, false);
     assert.equal(store.todos.length, 1);
+
     const rollbackSuccess = store.rollbackToLastPersisted();
     assert.equal(rollbackSuccess, true);
-    assert.equal(store.todos.length, 0); // Reverted back!
+    assert.equal(store.todos.length, 0);
   });
 });

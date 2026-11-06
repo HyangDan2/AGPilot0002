@@ -10,14 +10,21 @@ export class ModalController {
   constructor() {
     this.activeDialog = null;
     this.previousFocusedElement = null;
+    this.pendingSettle = null;
     this.setupGlobalListeners();
   }
 
   setupGlobalListeners() {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.activeDialog) {
-        // Native <dialog> triggers 'cancel' on Escape, but for custom dialogs ensure close
-        this.close();
+        // Native <dialog> triggers 'cancel' on Escape, but ensure pending promises settle cleanly
+        if (this.pendingSettle) {
+          const settle = this.pendingSettle;
+          this.pendingSettle = null;
+          settle();
+        } else {
+          this.close();
+        }
       }
     });
   }
@@ -114,24 +121,35 @@ export class ModalController {
         </div>
       `;
 
+      const ac = new AbortController();
+      const { signal } = ac;
       let isSettled = false;
+
       const settle = (result) => {
         if (isSettled) return;
         isSettled = true;
+        this.pendingSettle = null;
+        ac.abort();
         this.close();
-        resolve(result);
+        resolve(result ?? false);
       };
+
+      this.pendingSettle = () => settle(false);
 
       const confirmBtn = dialog.querySelector('.confirm-btn');
       const cancelBtn = dialog.querySelector('.cancel-btn');
 
-      confirmBtn.addEventListener('click', () => settle(true), { once: true });
-      cancelBtn.addEventListener('click', () => settle(false), { once: true });
+      confirmBtn.addEventListener('click', () => settle(true), { signal });
+      cancelBtn.addEventListener('click', () => settle(false), { signal });
 
       dialog.addEventListener('cancel', (e) => {
         e.preventDefault();
         settle(false);
-      }, { once: true });
+      }, { signal });
+
+      dialog.addEventListener('close', () => {
+        settle(false);
+      }, { signal });
 
       dialog.addEventListener('click', (e) => {
         const rect = dialog.getBoundingClientRect();
@@ -142,7 +160,7 @@ export class ModalController {
         if (!isInDialog) {
           settle(false);
         }
-      });
+      }, { signal });
 
       this.open(dialog);
     });
@@ -214,13 +232,20 @@ export class ModalController {
         </div>
       `;
 
+      const ac = new AbortController();
+      const { signal } = ac;
       let isSettled = false;
+
       const settle = (choice) => {
         if (isSettled) return;
         isSettled = true;
+        this.pendingSettle = null;
+        ac.abort();
         this.close();
-        resolve(choice);
+        resolve(choice ?? 'cancel');
       };
+
+      this.pendingSettle = () => settle('cancel');
 
       const confirmBtn = dialog.querySelector('.confirm-btn');
       const cancelBtn = dialog.querySelector('.cancel-btn');
@@ -228,14 +253,18 @@ export class ModalController {
       confirmBtn.addEventListener('click', () => {
         const selected = dialog.querySelector('input[name="importMode"]:checked');
         settle(selected ? selected.value : 'merge');
-      }, { once: true });
+      }, { signal });
 
-      cancelBtn.addEventListener('click', () => settle('cancel'), { once: true });
+      cancelBtn.addEventListener('click', () => settle('cancel'), { signal });
 
       dialog.addEventListener('cancel', (e) => {
         e.preventDefault();
         settle('cancel');
-      }, { once: true });
+      }, { signal });
+
+      dialog.addEventListener('close', () => {
+        settle('cancel');
+      }, { signal });
 
       dialog.addEventListener('click', (e) => {
         const rect = dialog.getBoundingClientRect();
@@ -246,7 +275,7 @@ export class ModalController {
         if (!isInDialog) {
           settle('cancel');
         }
-      });
+      }, { signal });
 
       this.open(dialog);
     });
@@ -381,13 +410,20 @@ export class ModalController {
         }
       });
 
+      const ac = new AbortController();
+      const { signal } = ac;
       let isSettled = false;
+
       const settle = (result) => {
         if (isSettled) return;
         isSettled = true;
+        this.pendingSettle = null;
+        ac.abort();
         this.close();
-        resolve(result);
+        resolve(result ?? null);
       };
+
+      this.pendingSettle = () => settle(null);
 
       const form = dialog.querySelector('#editTaskForm');
       const cancelBtn = dialog.querySelector('.cancel-btn');
@@ -414,15 +450,19 @@ export class ModalController {
           dueDate,
           subtasks: cleanSubtasks
         });
-      }, { once: true });
+      }, { signal });
 
-      cancelBtn.addEventListener('click', () => settle(null), { once: true });
-      closeDialogBtn.addEventListener('click', () => settle(null), { once: true });
+      cancelBtn.addEventListener('click', () => settle(null), { signal });
+      closeDialogBtn.addEventListener('click', () => settle(null), { signal });
 
       dialog.addEventListener('cancel', (e) => {
         e.preventDefault();
         settle(null);
-      }, { once: true });
+      }, { signal });
+
+      dialog.addEventListener('close', () => {
+        settle(null);
+      }, { signal });
 
       dialog.addEventListener('click', (e) => {
         const rect = dialog.getBoundingClientRect();
@@ -433,7 +473,7 @@ export class ModalController {
         if (!isInDialog) {
           settle(null);
         }
-      });
+      }, { signal });
 
       this.open(dialog);
     });

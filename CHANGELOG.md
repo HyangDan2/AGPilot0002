@@ -5,22 +5,28 @@ All notable changes to this project are documented in this file.
 ## [2.1.0] - 2026-11-06
 
 ### 🛡️ Critical Reliability & Data Integrity (P0)
-- **Explicit Storage Failure Propagation & Rollback**:
+- **Explicit Storage Failure Propagation & Auto-Rollback**:
   - `Store.persist()` captures storage failure codes (`QUOTA_EXCEEDED`, `STORAGE_UNAVAILABLE`, `STORAGE_ERROR`) and dispatches notifications via `onStorageError`.
-  - Added `rollbackToLastPersisted()` to safely revert in-memory changes when browser storage write fails.
+  - Added automatic in-memory rollback (`autoRollback: true`) on persist failure so unsaved mutations are never left in memory or displayed in the UI.
+  - UI mutation handlers prevent false success toasts when storage writes fail.
   - Added failure-injection unit tests ensuring user data is never silently lost.
-- **Multi-Delete Undo Integrity**:
+- **Multi-Delete Undo Integrity & Expired ID Isolation**:
   - Replaced single `lastDeletedItem` with operation-specific `undoRegistry` (Map).
+  - A missing, expired, or previously consumed undo ID strictly returns `null` and never triggers a fallback undo on other items.
   - Supports multiple consecutive deletions with independent undo actions without race conditions.
   - Supports undoing batch operations (`clearCompleted`) and completing recurring tasks.
   - Guaranteed deduplication on restoration.
-- **Modal Lifecycle Single-Resolution Guarantee**:
-  - Refactored `ModalController` to ensure every dialog promise resolves exactly once across Confirm, Cancel, ESC key, native `cancel` event, and backdrop click.
+- **Modal Lifecycle Single-Resolution Guarantee & Leak Prevention**:
+  - Refactored `ModalController` to ensure every dialog promise resolves exactly once across Confirm, Cancel, ESC key, native `cancel`/`close` events, and backdrop click.
+  - Integrated `AbortController` signal cleanup on every opening, eliminating duplicate event listeners and memory leaks across repeated openings.
   - Added comprehensive `showEditTaskModal(todo)` for editing title, category, priority, recurrence, due date, and subtasks.
-- **Strict Backup Validation & Safe Merge**:
-  - Rejection of unsupported future versions and item-count limits (> 5000) as safety guard.
-  - Added `analyzeBackupDuplicates(existing, incoming)` returning New / Duplicate / Invalid breakdown.
-  - Added `mergeTodosSafely(existing, incoming)` preventing duplicate task insertion while updating existing tasks safely.
+- **Strict Backup Validation & Composite Signature Deduplication**:
+  - Formalized `BACKUP_VERSION = 2.1` with full backward compatibility for v1/v2 payloads and rejection of unsupported future versions.
+  - Implemented composite signature matching (`getTodoContentSignature`) covering title, dueDate, category, priority, recurrence, and subtasks, ensuring distinct tasks sharing title and due date are never mistakenly discarded during import.
+- **Service Worker Cache Origin Isolation**:
+  - Scoped cache key cleanup in `sw.js` with `CACHE_PREFIX = 'hd2lab-todo-'` so other applications sharing the same GitHub Pages origin are never evicted.
+- **Timezone-Safe Today Focus Completion Comparison**:
+  - Evaluates completion timestamps (`todo.completedAt`) against local calendar date strings (`getLocalDateString`) instead of raw UTC string prefixes.
 
 ### ⚙️ Logic Consistency (P1)
 - **Recurring Task Engine**:
