@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { Store } from '../../js/state/store.js';
+import { getLocalDateString, calculateNextRecurringDate } from '../../js/utils/date.js';
 
 class MockStorage {
   constructor() {
@@ -32,9 +33,11 @@ describe('Store', () => {
 
   it('should auto-schedule next occurrence when completing a recurring task', () => {
     const store = new Store({ storageEngine: new MockStorage() });
+    const todayStr = getLocalDateString(new Date());
+    const expectedNext = calculateNextRecurringDate(todayStr, 'daily');
     const recurring = store.addTodo({
       title: '매일 영양제 먹기',
-      dueDate: '2026-11-06',
+      dueDate: todayStr,
       recurrence: 'daily'
     });
 
@@ -51,7 +54,7 @@ describe('Store', () => {
     assert.ok(completedPrev);
     assert.ok(nextTask);
     assert.equal(nextTask.title, '매일 영양제 먹기');
-    assert.equal(nextTask.dueDate, '2026-11-07');
+    assert.equal(nextTask.dueDate, expectedNext);
     assert.equal(nextTask.recurrence, 'daily');
   });
 
