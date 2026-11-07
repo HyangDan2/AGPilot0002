@@ -6,7 +6,7 @@ import { validateAndSanitizeTodo } from '../models/todo.js';
 import { generateId, safeJSONParse } from '../utils/security.js';
 import { getLocalDateString } from '../utils/date.js';
 
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 2.1;
 export const APP_IDENTIFIER = 'HD2Lab Todo Master';
 
 /**
@@ -64,6 +64,17 @@ export function validateBackupPayload(rawInput) {
   } else if (parsed && typeof parsed === 'object') {
     // Version 2 structure
     version = parsed.version || 2;
+    if (version > BACKUP_VERSION) {
+      return {
+        isValid: false,
+        version,
+        validTodos: [],
+        invalidCount: 0,
+        totalCount: 0,
+        error: `지원되지 않는 최신 백업 버전(v${version})입니다. 앱을 업데이트해 주세요.`
+      };
+    }
+
     if (Array.isArray(parsed.todos)) {
       rawList = parsed.todos;
     } else {
@@ -84,6 +95,18 @@ export function validateBackupPayload(rawInput) {
       invalidCount: 0,
       totalCount: 0,
       error: '인식할 수 없는 백업 데이터 형식입니다.'
+    };
+  }
+
+  // Item count safeguard
+  if (rawList.length > 5000) {
+    return {
+      isValid: false,
+      version,
+      validTodos: [],
+      invalidCount: 0,
+      totalCount: rawList.length,
+      error: '최대 허용 항목 수(5000개)를 초과하여 복원할 수 없습니다.'
     };
   }
 
@@ -124,6 +147,102 @@ export function validateBackupPayload(rawInput) {
     totalCount: rawList.length,
     error: null
   };
+}
+
+/**
+ * Computes a normalized composite content signature for duplicate detection.
+ * Distinct tasks sharing title & date (but with different categories, priorities, or subtasks)
+ * produce different signatures and will not be discarded.
+ * @param {object} todo
+ * @returns {string}
+ */
+export function getTodoContentSignature(todo) {
+  if (!todo) return '';
+  const subtasksSig = (Array.isArray(todo.subtasks) ? todo.subtasks : [])
+    .map(s => `${(s.title || '').trim()}:${Boolean(s.completed)}`)
+    .sort()
+    .join('|');
+  return [
+    (todo.title || '').trim(),
+    todo.dueDate || '',
+    todo.category || '개인',
+    todo.priority || 'medium',
+    todo.recurrence || 'none',
+    subtasksSig
+  ].join('::');
+}
+
+/**
+ * Analyzes duplicates between existing todos and incoming backup todos.
+ * A task is considered a duplicate if it shares the same ID OR the exact same content signature.
+ * @param {Array<object>} existingTodos
+ * @param {Array<object>} incomingTodos
+ * @returns {{
+ *   totalCount: number,
+ *   newCount: number,
+ *   duplicateCount: number,
+ *   duplicates: Array<object>
+ * }}
+ */
+export function analyzeBackupDuplicates(existingTodos, incomingTodos) {
+  const existingIdSet = new Set(existingTodos.map(t => t.id));
+  const existingSigSet = new Set(existingTodos.map(t => getTodoContentSignature(t)));
+
+  let duplicateCount = 0;
+  const duplicates = [];
+
+  incomingTodos.forEach(item => {
+    const isDupId = existingIdSet.has(item.id);
+    const sig = getTodoContentSignature(item);
+    const isDupContent = existingSigSet.has(sig);
+
+    if (isDupId || isDupContent) {
+      duplicateCount++;
+      duplicates.push(item);
+    }
+  });
+
+  return {
+    totalCount: incomingTodos.length,
+    newCount: incomingTodos.length - duplicateCount,
+    duplicateCount,
+    duplicates
+  };
+}
+
+/**
+ * Merge imported todos safely with existing todos, skipping unintended duplicates.
+ * @param {Array<object>} existingTodos
+ * @param {Array<object>} importedTodos
+ * @returns {Array<object>}
+ */
+export function mergeTodosSafely(existingTodos, importedTodos) {
+  const existingIdSet = new Set(existingTodos.map(t => t.id));
+  const existingSigSet = new Set(existingTodos.map(t => getTodoContentSignature(t)));
+
+  const merged = [...existingTodos];
+  let maxOrder = existingTodos.reduce((max, t) => Math.max(max, t.order || 0), -1);
+
+  importedTodos.forEach(imported => {
+    const sig = getTodoContentSignature(imported);
+    // If exact duplicate exists by ID or complete content signature, skip
+    if (existingIdSet.has(imported.id) || existingSigSet.has(sig)) {
+      return;
+    }
+
+    const item = { ...imported };
+    if (existingIdSet.has(item.id)) {
+      item.id = generateId('todo');
+    }
+    existingIdSet.add(item.id);
+    existingSigSet.add(sig);
+
+    maxOrder++;
+    item.order = maxOrder;
+    merged.push(item);
+  });
+
+  return merged;
 }
 
 /**

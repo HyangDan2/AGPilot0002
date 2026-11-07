@@ -30,15 +30,22 @@
 │   │   ├── storage.js       # LocalStorage abstraction, quota checks & fallback
 │   │   └── backup.js        # Version 2 export/import, schema validation & merge engine
 │   ├── state/
-│   │   └── store.js         # Reactive store, subscriber pattern, undo stack
+│   │   └── store.js         # Reactive store, subscriber pattern, undo stack, pagination & views
 │   ├── utils/
 │   │   ├── date.js          # Timezone-safe local dates, D-day, & recurrence rules
+│   │   ├── calendar-date.js # Pure calendar grid generator, month/week arithmetic
+│   │   ├── parser.js        # Rule-based natural language Korean smart task parser
 │   │   └── security.js      # XSS escaping, safe JSON parse, ID generation
 │   └── ui/
+│       ├── calendar.js      # Interactive monthly/weekly calendar view controller
 │       ├── components.js    # Task cards, subtasks, inline editing, contextual empty states
 │       ├── dnd.js           # Drag & Drop reordering & accessible keyboard moves
-│       ├── modal.js         # Accessible <dialog> controller (Confirm & Backup Preview)
-│       └── toast.js         # ARIA live-region toast notifications with Undo action
+│       ├── mobile-nav.js    # Mobile bottom navigation bar controller (Home, List, Cal, Add)
+│       ├── modal.js         # Accessible <dialog> controller (Confirm, Edit, Backup Preview)
+│       ├── pagination.js    # Client-side pagination controller (10, 20, 50 page sizes)
+│       ├── sidebar.js       # Desktop left navigation panel with category counts & view filters
+│       ├── toast.js         # ARIA live-region toast notifications with Undo action
+│       └── workspace.js     # Desktop 3-panel workspace, right context panel & dashboard view
 └── tests/
     ├── unit/                # Node.js native test runner tests (models, date, storage, etc.)
     └── e2e/                 # Playwright browser end-to-end & responsive viewport tests

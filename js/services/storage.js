@@ -8,7 +8,17 @@ import { safeJSONParse } from '../utils/security.js';
 
 export const STORAGE_KEY = 'todo_master_items_v1';
 export const THEME_KEY = 'todo_master_theme_v1';
+export const UI_PREFS_KEY = 'todo_master_ui_prefs_v1';
 export const SCHEMA_VERSION = 2;
+
+export const DEFAULT_UI_PREFS = {
+  pageSize: 10,
+  workspaceView: 'list',
+  displayDensity: 'comfortable',
+  groupBy: 'none',
+  calendarMode: 'month',
+  selectedDate: null
+};
 
 /**
  * Returns the active storage engine (window.localStorage or custom mock).
@@ -141,18 +151,18 @@ export function loadStoredTodos(storageEngine = null) {
  * Save todos into storage with quota error handling.
  * @param {Array<object>} todos
  * @param {Storage} [storageEngine]
- * @returns {{ success: boolean, error: string|null }}
+ * @returns {{ success: boolean, error: string|null, code: string|null }}
  */
 export function saveStoredTodos(todos, storageEngine = null) {
   const storage = getStorage(storageEngine);
   if (!storage) {
-    return { success: false, error: '저장소가 준비되지 않았습니다.' };
+    return { success: false, error: '저장소를 사용할 수 없습니다.', code: 'STORAGE_UNAVAILABLE' };
   }
 
   try {
     const serialized = JSON.stringify(todos);
     storage.setItem(STORAGE_KEY, serialized);
-    return { success: true, error: null };
+    return { success: true, error: null, code: null };
   } catch (err) {
     // QuotaExceededError check
     const isQuota =
@@ -160,11 +170,12 @@ export function saveStoredTodos(todos, storageEngine = null) {
       err.code === 22 ||
       err.name === 'NS_ERROR_DOM_QUOTA_REACHED';
 
+    const code = isQuota ? 'QUOTA_EXCEEDED' : 'STORAGE_ERROR';
     const errorMsg = isQuota
       ? '브라우저 저장 공간이 가득 차 데이터를 저장할 수 없습니다.'
       : `저장 실패: ${err.message || '알 수 없는 오류'}`;
 
-    return { success: false, error: errorMsg };
+    return { success: false, error: errorMsg, code };
   }
 }
 
@@ -188,5 +199,62 @@ export function loadStoredTheme(storageEngine = null) {
 export function saveStoredTheme(theme, storageEngine = null) {
   const storage = getStorage(storageEngine);
   if (!storage) return;
-  storage.setItem(THEME_KEY, theme === 'light' ? 'light' : 'dark');
+  try {
+    storage.setItem(THEME_KEY, theme === 'light' ? 'light' : 'dark');
+  } catch (err) {
+    console.warn('Failed to persist theme choice:', err);
+  }
 }
+
+/**
+ * Load saved UI preferences.
+ * @param {Storage} [storageEngine]
+ * @returns {typeof DEFAULT_UI_PREFS}
+ */
+export function loadStoredUiPrefs(storageEngine = null) {
+  const storage = getStorage(storageEngine);
+  if (!storage) return { ...DEFAULT_UI_PREFS };
+  try {
+    const raw = storage.getItem(UI_PREFS_KEY);
+    if (!raw) return { ...DEFAULT_UI_PREFS };
+    const parsed = safeJSONParse(raw, null);
+    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_UI_PREFS };
+    
+    // Validate fields
+    const pageSize = [10, 20, 50].includes(parsed.pageSize) ? parsed.pageSize : 10;
+    const workspaceView = ['list', 'calendar', 'dashboard', 'inbox'].includes(parsed.workspaceView) ? parsed.workspaceView : 'list';
+    const displayDensity = ['comfortable', 'compact'].includes(parsed.displayDensity) ? parsed.displayDensity : 'comfortable';
+    const groupBy = ['none', 'category', 'priority', 'status', 'dueDate'].includes(parsed.groupBy) ? parsed.groupBy : 'none';
+    const calendarMode = ['month', 'week'].includes(parsed.calendarMode) ? parsed.calendarMode : 'month';
+    const selectedDate = typeof parsed.selectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.selectedDate) ? parsed.selectedDate : null;
+
+    return {
+      pageSize,
+      workspaceView,
+      displayDensity,
+      groupBy,
+      calendarMode,
+      selectedDate
+    };
+  } catch {
+    return { ...DEFAULT_UI_PREFS };
+  }
+}
+
+/**
+ * Save UI preferences.
+ * @param {Partial<typeof DEFAULT_UI_PREFS>} prefs
+ * @param {Storage} [storageEngine]
+ */
+export function saveStoredUiPrefs(prefs, storageEngine = null) {
+  const storage = getStorage(storageEngine);
+  if (!storage) return;
+  try {
+    const current = loadStoredUiPrefs(storage);
+    const updated = { ...current, ...prefs };
+    storage.setItem(UI_PREFS_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Failed to persist UI preferences:', err);
+  }
+}
+

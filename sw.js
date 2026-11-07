@@ -3,7 +3,8 @@
  * Provides offline caching for static assets.
  */
 
-const CACHE_NAME = 'hd2lab-todo-v2.0.0';
+const CACHE_PREFIX = 'hd2lab-todo-';
+const CACHE_NAME = 'hd2lab-todo-v2.2.0';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -20,11 +21,18 @@ const STATIC_ASSETS = [
   './js/services/storage.js',
   './js/services/backup.js',
   './js/utils/date.js',
+  './js/utils/calendar-date.js',
   './js/utils/security.js',
+  './js/utils/parser.js',
   './js/ui/components.js',
   './js/ui/toast.js',
   './js/ui/modal.js',
-  './js/ui/dnd.js'
+  './js/ui/dnd.js',
+  './js/ui/pagination.js',
+  './js/ui/calendar.js',
+  './js/ui/sidebar.js',
+  './js/ui/workspace.js',
+  './js/ui/mobile-nav.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -40,7 +48,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          // Never delete caches belonging to other applications sharing the same origin!
+          if (key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME) {
             return caches.delete(key);
           }
         })
